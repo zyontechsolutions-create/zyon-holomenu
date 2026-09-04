@@ -117,8 +117,8 @@ export default function QrCodesPage() {
               </button>
               <button
   onClick={() => deleteCode(code.id, code.label)}
-  className="mt-2 text-xs flex items-center gap-1.5 text-red-600 hover:opacity-70 transition-opacity"
->
+className="mt-4 px-4 py-2 bg-red-600 text-white font-bold rounded-lg flex items-center gap-2"
+                >
   <Trash2 size={13} /> Delete
 </button>
             </div>
