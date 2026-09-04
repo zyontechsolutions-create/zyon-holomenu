@@ -115,12 +115,6 @@ export default function QrCodesPage() {
               >
                 <Download size={13} /> Download
               </button>
-              <button
-  onClick={() => deleteCode(code.id, code.label)}
-className="mt-4 px-4 py-2 bg-red-600 text-white font-bold rounded-lg flex items-center gap-2"
-                >
-  <Trash2 size={13} /> Delete
-</button>
             </div>
           ))}
         </div>
