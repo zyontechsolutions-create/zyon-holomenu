@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import Sidebar from "@/components/Sidebar";
 import { QRCodeCanvas } from "qrcode.react";
-import { Plus, Download, Trash2 } from "lucide-react";
+import { Plus, Download} from "lucide-react";
 
 type QrCode = { id: string; label: string; scans_count: number };
 
@@ -18,29 +18,7 @@ export default function QrCodesPage() {
     const { data } = await supabase.from("qr_codes").select("id, label, scans_count").eq("restaurant_id", rid);
     setCodes(data ?? []);
   }
-  async function deleteCode(id: string, label: string) {
-  const confirmed = window.confirm(
-    `Are you sure you want to delete "${label}"? This action cannot be undone.`
-  );
-
-  if (!confirmed) return;
-
-  const { error } = await supabase
-    .from("qr_codes")
-    .delete()
-    .eq("id", id)
-    .eq("restaurant_id", restaurantId);
-
-  if (error) {
-    console.error("Failed to delete QR code:", error);
-    alert("Failed to delete QR code. Please try again.");
-    return;
-  }
-
-  setCodes((currentCodes) =>
-    currentCodes.filter((code) => code.id !== id)
-  );
-}
+  
 
   useEffect(() => {
     async function init() {
