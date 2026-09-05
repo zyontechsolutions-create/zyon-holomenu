@@ -1,16 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import Sidebar from "@/components/Sidebar";
 import { QRCodeCanvas } from "qrcode.react";
-import { Plus, Download} from "lucide-react";
+import { Plus, Download } from "lucide-react";
 
 type QrCode = { id: string; label: string; scans_count: number };
 
-export default function QrCodesPage() {
+function QrCodesPage() {
   const supabase = createClient();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
-  const [slug, setSlug] = useState("");
+  const { restaurant } = useActiveRestaurant();
   const [codes, setCodes] = useState<QrCode[]>([]);
   const [label, setLabel] = useState("");
 
@@ -18,32 +18,18 @@ export default function QrCodesPage() {
     const { data } = await supabase.from("qr_codes").select("id, label, scans_count").eq("restaurant_id", rid);
     setCodes(data ?? []);
   }
-  
 
   useEffect(() => {
-    async function init() {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      const { data: restaurant } = await supabase
-        .from("restaurants")
-        .select("id, slug")
-        .eq("owner_id", userData.user.id)
-        .single();
-      if (restaurant) {
-        setRestaurantId(restaurant.id);
-        setSlug(restaurant.slug);
-        load(restaurant.id);
-      }
-    }
-    init();
-  }, []);
+    if (restaurant) load(restaurant.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   async function addCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!restaurantId || !label) return;
-    await supabase.from("qr_codes").insert({ restaurant_id: restaurantId, label });
+    if (!restaurant || !label) return;
+    await supabase.from("qr_codes").insert({ restaurant_id: restaurant.id, label });
     setLabel("");
-    load(restaurantId);
+    load(restaurant.id);
   }
 
   function downloadQr(id: string, name: string) {
@@ -56,7 +42,7 @@ export default function QrCodesPage() {
   }
 
   const menuUrl = (qrId: string) =>
-    `${typeof window !== "undefined" ? window.location.origin : ""}/m/${slug}?table=${qrId}`;
+    `${typeof window !== "undefined" ? window.location.origin : ""}/m/${restaurant?.slug}?table=${qrId}`;
 
   return (
     <div className="panel-shell">
@@ -103,5 +89,13 @@ export default function QrCodesPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function QrCodesPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
+      <QrCodesPage />
+    </Suspense>
   );
 }

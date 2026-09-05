@@ -1,34 +1,22 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import Sidebar from "@/components/Sidebar";
 import StatCard from "@/components/StatCard";
 
 type TopDish = { name: string; views: number };
 
-export default function DashboardPage() {
+function DashboardPage() {
   const supabase = createClient();
+  const { restaurant, loading: restaurantLoading } = useActiveRestaurant();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ views: 0, orders: 0, aov: 0, conversion: 0 });
   const [topDishes, setTopDishes] = useState<TopDish[]>([]);
-  const [restaurantName, setRestaurantName] = useState("");
 
   useEffect(() => {
     async function load() {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-
-      const { data: restaurant } = await supabase
-        .from("restaurants")
-        .select("id, name")
-        .eq("owner_id", userData.user.id)
-        .single();
-
-      if (!restaurant) {
-        setLoading(false);
-        return;
-      }
-      setRestaurantName(restaurant.name);
+      if (!restaurant) { setLoading(restaurantLoading); return; }
 
       const [{ count: viewsCount }, { data: orders }, { data: views }] = await Promise.all([
         supabase.from("menu_views").select("*", { count: "exact", head: true }).eq("restaurant_id", restaurant.id),
@@ -56,7 +44,8 @@ export default function DashboardPage() {
       setLoading(false);
     }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   return (
     <div className="panel-shell">
@@ -64,7 +53,7 @@ export default function DashboardPage() {
       <main className="panel-main">
         <div className="panel-header">
           <div>
-            <p className="panel-eyebrow">{restaurantName || "Your restaurant"}</p>
+            <p className="panel-eyebrow">{restaurant?.name || "Your restaurant"}</p>
             <h1 className="panel-title">Menu Overview</h1>
           </div>
         </div>
@@ -107,5 +96,13 @@ export default function DashboardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function DashboardPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
+      <DashboardPage />
+    </Suspense>
   );
 }

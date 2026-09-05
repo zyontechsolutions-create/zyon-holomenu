@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import Sidebar from "@/components/Sidebar";
 import { ClipboardList } from "lucide-react";
 
@@ -20,10 +21,10 @@ const STATUS_CLASS: Record<string, string> = {
   cancelled: "status-cancelled",
 };
 
-export default function OrdersPage() {
+function OrdersPage() {
   const supabase = createClient();
+  const { restaurant } = useActiveRestaurant();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
   async function loadOrders(rid: string) {
     const { data } = await supabase
@@ -35,35 +36,23 @@ export default function OrdersPage() {
   }
 
   useEffect(() => {
-    async function init() {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      const { data: restaurant } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("owner_id", userData.user.id)
-        .single();
-      if (restaurant) {
-        setRestaurantId(restaurant.id);
-        loadOrders(restaurant.id);
-
-        const channel = supabase
-          .channel("orders-changes")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
-            () => loadOrders(restaurant.id)
-          )
-          .subscribe();
-        return () => { supabase.removeChannel(channel); };
-      }
-    }
-    init();
-  }, []);
+    if (!restaurant) return;
+    loadOrders(restaurant.id);
+    const channel = supabase
+      .channel("orders-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
+        () => loadOrders(restaurant.id)
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   async function updateStatus(id: string, status: string) {
     await supabase.from("orders").update({ status }).eq("id", id);
-    if (restaurantId) loadOrders(restaurantId);
+    if (restaurant) loadOrders(restaurant.id);
   }
 
   return (
@@ -72,7 +61,7 @@ export default function OrdersPage() {
       <main className="panel-main">
         <div className="panel-header">
           <div>
-            <p className="panel-eyebrow">Live</p>
+            <p className="panel-eyebrow">{restaurant?.name ?? "Live"}</p>
             <h1 className="panel-title">Orders</h1>
           </div>
         </div>
@@ -110,5 +99,13 @@ export default function OrdersPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function OrdersPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
+      <OrdersPage />
+    </Suspense>
   );
 }

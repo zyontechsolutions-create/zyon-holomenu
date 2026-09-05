@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 
 const links = [
@@ -13,8 +14,24 @@ const links = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const restaurantParam = searchParams.get("restaurant");
+  const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
+
+  useEffect(() => {
+    async function checkAdmin() {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+      const { data } = await supabase
+        .from("zyon_admins").select("user_id").eq("user_id", userData.user.id).maybeSingle();
+      setIsAdmin(!!data);
+    }
+    checkAdmin();
+  }, []);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -28,10 +45,16 @@ export default function Sidebar() {
         <p>ZYON <span>HOLOMENU</span></p>
       </div>
       <nav className="panel-nav">
+        {isAdmin && (
+          <Link href="/admin" className={`panel-link ${pathname === "/admin" ? "active" : ""}`}>
+            <Building2 size={16} strokeWidth={1.8} />
+            <span>All Restaurants</span>
+          </Link>
+        )}
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href);
           return (
-            <Link key={href} href={href} className={`panel-link ${active ? "active" : ""}`}>
+            <Link key={href} href={`${href}${suffix}`} className={`panel-link ${active ? "active" : ""}`}>
               <Icon size={16} strokeWidth={1.8} />
               <span>{label}</span>
             </Link>

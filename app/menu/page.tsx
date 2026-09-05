@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import Sidebar from "@/components/Sidebar";
 import { Plus, Trash2, Pencil, UtensilsCrossed } from "lucide-react";
 
@@ -13,9 +14,9 @@ type Dish = {
   is_available: boolean;
 };
 
-export default function MenuPage() {
+function MenuPage() {
   const supabase = createClient();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const { restaurant } = useActiveRestaurant();
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
@@ -31,21 +32,9 @@ export default function MenuPage() {
   }
 
   useEffect(() => {
-    async function init() {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      const { data: restaurant } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("owner_id", userData.user.id)
-        .single();
-      if (restaurant) {
-        setRestaurantId(restaurant.id);
-        loadDishes(restaurant.id);
-      }
-    }
-    init();
-  }, []);
+    if (restaurant) loadDishes(restaurant.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   function openNew() {
     setEditing(null);
@@ -66,9 +55,9 @@ export default function MenuPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!restaurantId) return;
+    if (!restaurant) return;
     const payload = {
-      restaurant_id: restaurantId,
+      restaurant_id: restaurant.id,
       name: form.name,
       description: form.description,
       price: parseFloat(form.price || "0"),
@@ -80,20 +69,20 @@ export default function MenuPage() {
       await supabase.from("dishes").insert(payload);
     }
     setShowForm(false);
-    loadDishes(restaurantId);
+    loadDishes(restaurant.id);
   }
 
   async function handleDelete(id: string) {
-    if (!restaurantId) return;
+    if (!restaurant) return;
     if (!confirm("Remove this dish from the menu?")) return;
     await supabase.from("dishes").delete().eq("id", id);
-    loadDishes(restaurantId);
+    loadDishes(restaurant.id);
   }
 
   async function toggleAvailable(dish: Dish) {
-    if (!restaurantId) return;
+    if (!restaurant) return;
     await supabase.from("dishes").update({ is_available: !dish.is_available }).eq("id", dish.id);
-    loadDishes(restaurantId);
+    loadDishes(restaurant.id);
   }
 
   return (
@@ -102,7 +91,7 @@ export default function MenuPage() {
       <main className="panel-main">
         <div className="panel-header">
           <div>
-            <p className="panel-eyebrow">Manage</p>
+            <p className="panel-eyebrow">{restaurant?.name ?? "Manage"}</p>
             <h1 className="panel-title">Menu</h1>
           </div>
           <button onClick={openNew} className="btn-gold flex items-center gap-2">
@@ -148,7 +137,7 @@ export default function MenuPage() {
 
         {showForm && (
           <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
-            <form onSubmit={handleSave} className="section-card w-full max-w-md space-y-3 fade-up" style={{ animationDuration: ".35s" }}>
+            <form onSubmit={handleSave} className="section-card w-full max-w-md space-y-3">
               <h2 style={{ marginBottom: 4, fontSize: 20, fontFamily: "'Playfair Display', serif", fontWeight: 600, color: "#1E1B16", letterSpacing: 0, textTransform: "none" }}>
                 {editing ? "Edit dish" : "Add dish"}
               </h2>
@@ -195,5 +184,13 @@ export default function MenuPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function MenuPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
+      <MenuPage />
+    </Suspense>
   );
 }
