@@ -16,6 +16,14 @@ type Dish = {
 };
 type Category = { id: string; name: string; sort_order: number };
 type Restaurant = { id: string; name: string };
+type OrderSummaryItem = { name: string; qty: number; price: number };
+type HistoryOrder = {
+  id: string;
+  status: string;
+  total: number;
+  created_at: string;
+  items: OrderSummaryItem[];
+};
 
 const ScanIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -23,6 +31,36 @@ const ScanIcon = () => (
     <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
   </svg>
 );
+const ClockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 3" />
+  </svg>
+);
+
+const STATUS_LABEL: Record<string, string> = {
+  new: "Received",
+  preparing: "Preparing",
+  served: "Served",
+  cancelled: "Cancelled",
+};
+
+function historyKey(slug: string) {
+  return `holomenu-orders-${slug}`;
+}
+function getStoredOrderIds(slug: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(historyKey(slug)) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+function addStoredOrderId(slug: string, id: string) {
+  const ids = getStoredOrderIds(slug);
+  const next = [id, ...ids.filter((x) => x !== id)].slice(0, 20);
+  localStorage.setItem(historyKey(slug), JSON.stringify(next));
+}
 
 export default function CustomerMenuPage() {
   const supabase = createClient();
@@ -39,7 +77,11 @@ export default function CustomerMenuPage() {
   const [arDish, setArDish] = useState<Dish | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [placingOrder, setPlacingOrder] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState<string | null>(null);
+
+  const [lastOrder, setLastOrder] = useState<{ items: OrderSummaryItem[]; total: number } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -90,9 +132,41 @@ export default function CustomerMenuPage() {
     await supabase.from("order_items").insert(
       cartItems.map((i) => ({ order_id: order.id, dish_id: i.dish.id, quantity: i.qty, price_at_order: i.dish.price }))
     );
-    setOrderPlaced(order.id);
+
+    addStoredOrderId(slug, order.id);
+    setLastOrder({
+      items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price })),
+      total: cartTotal,
+    });
     setCart({});
     setPlacingOrder(false);
+  }
+
+  async function openHistory() {
+    setShowHistory(true);
+    setHistoryLoading(true);
+    const ids = getStoredOrderIds(slug);
+    if (ids.length === 0) { setHistoryOrders([]); setHistoryLoading(false); return; }
+
+    const { data } = await supabase
+      .from("orders")
+      .select("id, status, total, created_at, order_items(quantity, price_at_order, dishes(name))")
+      .in("id", ids)
+      .order("created_at", { ascending: false });
+
+    const mapped: HistoryOrder[] = (data ?? []).map((o: any) => ({
+      id: o.id,
+      status: o.status,
+      total: o.total,
+      created_at: o.created_at,
+      items: (o.order_items ?? []).map((it: any) => ({
+        name: it.dishes?.name ?? "Unknown dish",
+        qty: it.quantity,
+        price: it.price_at_order,
+      })),
+    }));
+    setHistoryOrders(mapped);
+    setHistoryLoading(false);
   }
 
   const grouped = categories.map((cat) => ({ ...cat, items: dishes.filter((d) => d.category_id === cat.id) }))
@@ -111,6 +185,9 @@ export default function CustomerMenuPage() {
       <header className="site-header">
         <div className="corner" aria-hidden="true"></div>
         <div className="brand-eyebrow">ZYON <span>HOLOMENU</span></div>
+        <button className="my-orders-btn" onClick={openHistory}>
+          <ClockIcon /> My Orders
+        </button>
       </header>
 
       <section className="hero">
@@ -221,20 +298,71 @@ export default function CustomerMenuPage() {
       )}
 
       {/* Cart bar */}
-      {cartCount > 0 && !orderPlaced && (
+      {cartCount > 0 && (
         <div className="cart-bar">
           <span style={{ fontSize: 13 }}>{cartCount} item{cartCount > 1 ? "s" : ""} · ₹{cartTotal.toFixed(0)}</span>
           <button onClick={placeOrder} disabled={placingOrder}>{placingOrder ? "Placing..." : "Place order"}</button>
         </div>
       )}
 
-      {/* Order confirmation */}
-      {orderPlaced && (
+      {/* Order confirmation — now itemized */}
+      {lastOrder && (
         <div className="ar-modal">
-          <div className="ar-sheet" style={{ textAlign: "center", paddingTop: 32 }}>
-            <h3>Order placed</h3>
-            <p className="ar-note" style={{ marginBottom: 24 }}>Your order is on its way to the kitchen.</p>
-            <button className="ar-launch" onClick={() => setOrderPlaced(null)}>Back to menu</button>
+          <div className="ar-sheet" style={{ paddingTop: 28 }}>
+            <h3 style={{ textAlign: "center" }}>Order placed</h3>
+            <p className="ar-note" style={{ textAlign: "center", marginBottom: 18 }}>Your order is on its way to the kitchen.</p>
+            <div className="history-list" style={{ maxHeight: "40vh" }}>
+              {lastOrder.items.map((item, idx) => (
+                <div key={idx} className="history-item-row">
+                  <span>{item.qty}× {item.name}</span>
+                  <span>₹{(item.qty * item.price).toFixed(0)}</span>
+                </div>
+              ))}
+              <div className="history-total">
+                <span>Total</span>
+                <span>₹{lastOrder.total.toFixed(0)}</span>
+              </div>
+            </div>
+            <button className="ar-launch" onClick={() => setLastOrder(null)}>Back to menu</button>
+          </div>
+        </div>
+      )}
+
+      {/* My Orders history */}
+      {showHistory && (
+        <div className="ar-modal" onClick={(e) => { if (e.target === e.currentTarget) setShowHistory(false); }}>
+          <div className="ar-sheet" style={{ paddingTop: 28 }}>
+            <button className="ar-close" onClick={() => setShowHistory(false)}>×</button>
+            <h3 style={{ marginBottom: 18 }}>My Orders</h3>
+            {historyLoading ? (
+              <p className="ar-note">Loading...</p>
+            ) : historyOrders.length === 0 ? (
+              <p className="ar-note">No orders placed yet on this device.</p>
+            ) : (
+              <div className="history-list">
+                {historyOrders.map((o) => (
+                  <div key={o.id} className="history-order">
+                    <div className="history-order-head">
+                      <span className={`status-pill status-${o.status === "new" ? "new" : o.status === "served" ? "served" : o.status === "cancelled" ? "cancelled" : "preparing"}`}
+                        style={{ fontSize: 10, padding: "5px 11px" }}>
+                        {STATUS_LABEL[o.status] ?? o.status}
+                      </span>
+                      <span className="when">{new Date(o.created_at).toLocaleString()}</span>
+                    </div>
+                    {o.items.map((item, idx) => (
+                      <div key={idx} className="history-item-row">
+                        <span>{item.qty}× {item.name}</span>
+                        <span>₹{(item.qty * item.price).toFixed(0)}</span>
+                      </div>
+                    ))}
+                    <div className="history-total">
+                      <span>Total</span>
+                      <span>₹{o.total}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

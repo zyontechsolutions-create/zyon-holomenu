@@ -29,7 +29,17 @@ body {
 /* ===== Customer menu page — ported from the HoloMenu demo design ===== */
 .wrap{max-width:560px;margin:0 auto;background:#F5F0E4;min-height:100vh;}
 
-.site-header{position:relative;display:flex;align-items:center;padding:26px 28px 22px;}
+.site-header{position:relative;display:flex;align-items:center;justify-content:space-between;padding:26px 28px 22px;}
+.my-orders-btn{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8C6428;border:1px solid #B8873F;border-radius:999px;padding:8px 14px;background:transparent;}
+.my-orders-btn svg{width:13px;height:13px;}
+
+.history-list{max-height:60vh;overflow-y:auto;margin-bottom:8px;}
+.history-order{border:1px solid rgba(30,27,22,0.13);border-radius:6px;padding:16px;margin-bottom:12px;}
+.history-order-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.history-order-head .when{font-size:11px;color:#6b6455;}
+.history-item-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#1E1B16;}
+.history-item-row span:last-child{color:#6b6455;}
+.history-total{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-top:8px;padding-top:8px;border-top:1px solid rgba(30,27,22,0.1);}
 .brand-eyebrow{font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:500;}
 .brand-eyebrow span{color:#8C6428;}
 .corner{position:absolute;width:22px;height:22px;border-top:1.5px solid #B8873F;border-right:1.5px solid #B8873F;top:26px;right:28px;}
