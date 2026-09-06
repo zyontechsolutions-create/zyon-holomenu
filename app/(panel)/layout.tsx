@@ -1,13 +1,16 @@
 import { Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
+import { RestaurantProvider } from "@/lib/RestaurantContext";
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="panel-shell">
-      <Suspense fallback={<aside className="panel-sidebar" />}>
-        <Sidebar />
-      </Suspense>
-      <main className="panel-main">{children}</main>
-    </div>
+    <Suspense fallback={<div className="panel-shell" />}>
+      <RestaurantProvider>
+        <div className="panel-shell">
+          <Sidebar />
+          <main className="panel-main">{children}</main>
+        </div>
+      </RestaurantProvider>
+    </Suspense>
   );
 }
