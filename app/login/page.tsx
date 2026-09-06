@@ -55,11 +55,14 @@ export default function LoginPage() {
             className="w-full border border-ink/15 rounded-md px-3.5 py-3 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
           />
           {error && <p className="text-xs text-red-600">{error}</p>}
-          <button type="submit" disabled={loading} className="btn-gold w-full py-3 mt-2">
+     <button type="submit" disabled={loading} className="btn-gold w-full py-3 mt-2">
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-      </div>
+        <p className="text-xs text-inkSoft mt-5 text-center">
+          New restaurant? <a href="/signup" className="text-goldDeep">Create your menu</a>
+        </p>
+      </div>          
     </div>
   );
 }
