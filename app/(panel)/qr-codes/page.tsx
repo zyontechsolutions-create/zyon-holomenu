@@ -3,7 +3,7 @@ import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { QRCodeCanvas } from "qrcode.react";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, Trash2 } from "lucide-react";
 
 type QrCode = { id: string; label: string; scans_count: number };
 
@@ -28,6 +28,13 @@ function QrCodesPage() {
     if (!restaurant || !label) return;
     await supabase.from("qr_codes").insert({ restaurant_id: restaurant.id, label });
     setLabel("");
+    load(restaurant.id);
+  }
+
+  async function deleteCode(id: string, name: string) {
+    const ok = window.confirm(`Delete QR code "${name}"? This can't be undone — you'll need to reprint it if you change your mind.`);
+    if (!ok || !restaurant) return;
+    await supabase.from("qr_codes").delete().eq("id", id);
     load(restaurant.id);
   }
 
@@ -70,12 +77,20 @@ function QrCodesPage() {
               <QRCodeCanvas id={`qr-${code.id}`} value={menuUrl(code.id)} size={140} includeMargin />
               <p className="text-sm font-medium mt-3.5">{code.label}</p>
               <p className="text-xs text-inkSoft mt-1">{code.scans_count} scans</p>
-              <button
-                onClick={() => downloadQr(code.id, code.label)}
-                className="mt-3.5 text-xs flex items-center gap-1.5 text-goldDeep hover:opacity-70 transition-opacity"
-              >
-                <Download size={13} /> Download
-              </button>
+              <div className="mt-3.5 flex items-center gap-4">
+                <button
+                  onClick={() => downloadQr(code.id, code.label)}
+                  className="text-xs flex items-center gap-1.5 text-goldDeep hover:opacity-70 transition-opacity"
+                >
+                  <Download size={13} /> Download
+                </button>
+                <button
+                  onClick={() => deleteCode(code.id, code.label)}
+                  className="text-xs flex items-center gap-1.5 text-red-600 hover:opacity-70 transition-opacity"
+                >
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
