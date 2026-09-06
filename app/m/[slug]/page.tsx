@@ -183,8 +183,10 @@ export default function CustomerMenuPage() {
       <Script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js" strategy="afterInteractive" />
 
       <header className="site-header">
-        <div className="corner" aria-hidden="true"></div>
-        <div className="brand-eyebrow">ZYON <span>HOLOMENU</span></div>
+        <div className="brand-block">
+          <div className="corner" aria-hidden="true"></div>
+          <div className="brand-eyebrow">ZYON <span>HOLOMENU</span></div>
+        </div>
         <button className="my-orders-btn" onClick={openHistory}>
           <ClockIcon /> My Orders
         </button>
