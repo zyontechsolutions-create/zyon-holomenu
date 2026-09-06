@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
+import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -17,21 +17,10 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin } = useActiveRestaurant();
 
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
-
-  useEffect(() => {
-    async function checkAdmin() {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return;
-      const { data } = await supabase
-        .from("zyon_admins").select("user_id").eq("user_id", userData.user.id).maybeSingle();
-      setIsAdmin(!!data);
-    }
-    checkAdmin();
-  }, []);
 
   async function handleLogout() {
     await supabase.auth.signOut();
