@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
-import { Plus, Trash2, Pencil, UtensilsCrossed } from "lucide-react";
+import { Plus, Trash2, Pencil, UtensilsCrossed, Upload, Loader2 } from "lucide-react";
 
 type Dish = {
   id: string;
@@ -20,6 +20,8 @@ function MenuPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
   const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "" });
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   async function loadDishes(rid: string) {
     const { data } = await supabase
@@ -38,6 +40,7 @@ function MenuPage() {
   function openNew() {
     setEditing(null);
     setForm({ name: "", description: "", price: "", photo_url: "" });
+    setUploadError("");
     setShowForm(true);
   }
 
@@ -49,7 +52,43 @@ function MenuPage() {
       price: String(dish.price),
       photo_url: dish.photo_url ?? "",
     });
+    setUploadError("");
     setShowForm(true);
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !restaurant) return;
+
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please choose an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image is too large — please use one under 5MB.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadError("");
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "-");
+    const path = `${restaurant.id}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage.from("dish-photos").upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+    if (error) {
+      setUploadError("Upload failed — please try again.");
+      setUploading(false);
+      return;
+    }
+
+    const { data: pub } = supabase.storage.from("dish-photos").getPublicUrl(path);
+    setForm((f) => ({ ...f, photo_url: pub.publicUrl }));
+    setUploading(false);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -138,6 +177,31 @@ function MenuPage() {
               <h2 style={{ marginBottom: 4, fontSize: 20, fontFamily: "'Playfair Display', serif", fontWeight: 600, color: "#1E1B16", letterSpacing: 0, textTransform: "none" }}>
                 {editing ? "Edit dish" : "Add dish"}
               </h2>
+
+              <div className="flex items-center gap-3">
+                {form.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.photo_url} alt="" className="w-16 h-16 rounded-md object-cover shrink-0 border border-ink/10" />
+                ) : (
+                  <div className="w-16 h-16 rounded-md bg-creamDeep flex items-center justify-center text-inkSoft shrink-0">
+                    <UtensilsCrossed size={20} strokeWidth={1.5} />
+                  </div>
+                )}
+                <label className="flex-1 flex items-center justify-center gap-2 border border-ink/15 rounded-md px-3 py-2.5 text-sm cursor-pointer hover:bg-creamDeep transition-colors">
+                  {uploading ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={15} /> {form.photo_url ? "Replace photo" : "Upload photo"}
+                    </>
+                  )}
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} disabled={uploading} className="hidden" />
+                </label>
+              </div>
+              {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+
               <input
                 required
                 placeholder="Dish name"
@@ -161,13 +225,13 @@ function MenuPage() {
                 className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
               />
               <input
-                placeholder="Photo URL"
+                placeholder="Or paste an image URL instead"
                 value={form.photo_url}
                 onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
                 className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
               />
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="btn-gold flex-1 py-2.5">Save</button>
+                <button type="submit" disabled={uploading} className="btn-gold flex-1 py-2.5">Save</button>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
