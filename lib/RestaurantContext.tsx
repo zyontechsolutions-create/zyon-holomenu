@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
-export type ActiveRestaurant = { id: string; name: string; slug: string } | null;
+export type ActiveRestaurant = { id: string; name: string; slug: string; status: string } | null;
 
 type RestaurantContextValue = {
   restaurant: ActiveRestaurant;
@@ -54,14 +54,14 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
       if (overrideId && isAdmin) {
         const { data: r } = await supabase
           .from("restaurants")
-          .select("id, name, slug")
+          .select("id, name, slug, status")
           .eq("id", overrideId)
           .single();
         setRestaurant(r ?? null);
-   } else {
+      } else {
         const { data: r } = await supabase
           .from("restaurants")
-          .select("id, name, slug")
+          .select("id, name, slug, status")
           .eq("owner_id", userId)
           .maybeSingle();
 
@@ -77,7 +77,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
             const { data: created } = await supabase
               .from("restaurants")
               .insert({ name: pendingName, slug: pendingSlug, owner_id: userId })
-              .select("id, name, slug")
+              .select("id, name, slug, status")
               .single();
             setRestaurant(created ?? null);
           } else {
