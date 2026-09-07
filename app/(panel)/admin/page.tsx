@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { Plus, ArrowRight, Building2 } from "lucide-react";
 
-type Restaurant = { id: string; name: string; slug: string; plan: string; created_at: string; dish_count?: number };
+type Restaurant = { id: string; name: string; slug: string; plan: string; status: string; created_at: string; dish_count?: number };
 
 export default function AdminPage() {
   const supabase = createClient();
@@ -25,7 +25,7 @@ export default function AdminPage() {
     setIsAdmin(true);
 
     const { data: restaurantList } = await supabase
-      .from("restaurants").select("id, name, slug, plan, created_at").order("created_at", { ascending: false });
+      .from("restaurants").select("id, name, slug, plan, status, created_at").order("created_at", { ascending: false });
 
     const withCounts = await Promise.all(
       (restaurantList ?? []).map(async (r) => {
@@ -46,11 +46,17 @@ export default function AdminPage() {
       name: form.name,
       slug: form.slug.trim().toLowerCase().replace(/\s+/g, "-"),
       owner_id: form.owner_id,
+      status: "active",
     });
     setSaving(false);
     if (error) { setError(error.message); return; }
     setForm({ name: "", slug: "", owner_id: "" });
     setShowForm(false);
+    load();
+  }
+
+  async function approveRestaurant(id: string) {
+    await supabase.from("restaurants").update({ status: "active" }).eq("id", id);
     load();
   }
 
@@ -88,14 +94,27 @@ export default function AdminPage() {
                 <Building2 size={16} strokeWidth={1.6} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{r.name}</p>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  {r.name}
+                  {r.status === "pending" && (
+                    <span className="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                      Pending approval
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-inkSoft mt-0.5">
                   /m/{r.slug} · {r.dish_count} dish{r.dish_count !== 1 ? "es" : ""} · {r.plan}
                 </p>
               </div>
-              <Link href={`/dashboard?restaurant=${r.id}`} className="btn-gold flex items-center gap-2 text-xs">
-                Manage <ArrowRight size={13} />
-              </Link>
+              {r.status === "pending" ? (
+                <button onClick={() => approveRestaurant(r.id)} className="btn-gold flex items-center gap-2 text-xs">
+                  Approve
+                </button>
+              ) : (
+                <Link href={`/dashboard?restaurant=${r.id}`} className="btn-gold flex items-center gap-2 text-xs">
+                  Manage <ArrowRight size={13} />
+                </Link>
+              )}
             </div>
           ))}
           {restaurants.length === 0 && (
