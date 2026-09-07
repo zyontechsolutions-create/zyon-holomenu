@@ -17,6 +17,7 @@ type Dish = {
 type Category = { id: string; name: string; sort_order: number };
 type Restaurant = { id: string; name: string };
 type OrderSummaryItem = { name: string; qty: number; price: number };
+type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string };
 type HistoryOrder = {
   id: string;
   status: string;
@@ -79,7 +80,7 @@ export default function CustomerMenuPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
 
   const [showReview, setShowReview] = useState(false);
-  const [lastOrder, setLastOrder] = useState<{ items: OrderSummaryItem[]; total: number } | null>(null);
+  const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -105,6 +106,30 @@ export default function CustomerMenuPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  // Live order status — updates "Order placed" and "My Orders" the moment
+  // the kitchen changes a status, no refresh needed.
+  useEffect(() => {
+    if (!restaurant) return;
+    const channel = supabase
+      .channel(`customer-order-status-${restaurant.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
+        (payload) => {
+          const updated = payload.new as { id: string; status: string };
+          if (!getStoredOrderIds(slug).includes(updated.id)) return;
+
+          setLastOrder((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status } : prev));
+          setHistoryOrders((prev) =>
+            prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
+          );
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   async function logView(dish: Dish, viewedAr: boolean) {
     if (!restaurant) return;
@@ -136,8 +161,10 @@ export default function CustomerMenuPage() {
 
     addStoredOrderId(slug, order.id);
     setLastOrder({
+      id: order.id,
       items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price })),
       total: cartTotal,
+      status: "new",
     });
     setCart({});
     setShowReview(false);
@@ -361,7 +388,11 @@ export default function CustomerMenuPage() {
         <div className="ar-modal">
           <div className="ar-sheet" style={{ paddingTop: 28 }}>
             <h3 style={{ textAlign: "center" }}>Order placed</h3>
-            <p className="ar-note" style={{ textAlign: "center", marginBottom: 18 }}>Your order is on its way to the kitchen.</p>
+            <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 18px" }}>
+              <span className={`status-pill status-${lastOrder.status === "new" ? "new" : lastOrder.status === "served" ? "served" : lastOrder.status === "cancelled" ? "cancelled" : "preparing"}`}>
+                {STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
+              </span>
+            </div>
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {lastOrder.items.map((item, idx) => (
                 <div key={idx} className="history-item-row">
