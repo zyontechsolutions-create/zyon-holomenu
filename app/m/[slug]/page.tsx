@@ -78,6 +78,7 @@ export default function CustomerMenuPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [placingOrder, setPlacingOrder] = useState(false);
 
+  const [showReview, setShowReview] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ items: OrderSummaryItem[]; total: number } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
@@ -139,6 +140,7 @@ export default function CustomerMenuPage() {
       total: cartTotal,
     });
     setCart({});
+    setShowReview(false);
     setPlacingOrder(false);
   }
 
@@ -300,10 +302,57 @@ export default function CustomerMenuPage() {
       )}
 
       {/* Cart bar */}
-      {cartCount > 0 && (
+      {cartCount > 0 && !showReview && (
         <div className="cart-bar">
           <span style={{ fontSize: 13 }}>{cartCount} item{cartCount > 1 ? "s" : ""} · ₹{cartTotal.toFixed(0)}</span>
-          <button onClick={placeOrder} disabled={placingOrder}>{placingOrder ? "Placing..." : "Place order"}</button>
+          <button onClick={() => setShowReview(true)}>Review order</button>
+        </div>
+      )}
+
+      {/* Review order — must confirm here before it's actually sent */}
+      {showReview && (
+        <div className="ar-modal" onClick={(e) => { if (e.target === e.currentTarget) setShowReview(false); }}>
+          <div className="ar-sheet" style={{ paddingTop: 28 }}>
+            <button className="ar-close" onClick={() => setShowReview(false)}>×</button>
+            <h3 style={{ textAlign: "center" }}>Review your order</h3>
+            <p className="ar-note" style={{ textAlign: "center", marginBottom: 18 }}>
+              Check everything before it goes to the kitchen.
+            </p>
+            <div className="history-list" style={{ maxHeight: "40vh" }}>
+              {cartItems.map((item) => (
+                <div key={item.dish.id} className="history-item-row" style={{ alignItems: "center" }}>
+                  <span>{item.dish.name}</span>
+                  <span className="qty-chip">
+                    <button onClick={() => removeFromCart(item.dish.id)}>−</button>
+                    <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{item.qty}</span>
+                    <button onClick={() => addToCart(item.dish.id)}>+</button>
+                  </span>
+                  <span>₹{(item.dish.price * item.qty).toFixed(0)}</span>
+                </div>
+              ))}
+              {cartItems.length === 0 && (
+                <p className="ar-note" style={{ textAlign: "center" }}>Your cart is empty.</p>
+              )}
+              <div className="history-total">
+                <span>Total</span>
+                <span>₹{cartTotal.toFixed(0)}</span>
+              </div>
+            </div>
+            <button
+              className="ar-launch"
+              onClick={placeOrder}
+              disabled={placingOrder || cartItems.length === 0}
+            >
+              {placingOrder ? "Placing..." : "Confirm order"}
+            </button>
+            <button
+              className="ar-hint"
+              style={{ background: "none", border: "none", width: "100%", textAlign: "center", marginTop: 10, cursor: "pointer" }}
+              onClick={() => setShowReview(false)}
+            >
+              ← Back to menu, keep editing
+            </button>
+          </div>
         </div>
       )}
 
