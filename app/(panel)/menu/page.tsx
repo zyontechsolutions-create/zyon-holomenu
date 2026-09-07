@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
-import { Plus, Trash2, Pencil, UtensilsCrossed, Upload, Loader2 } from "lucide-react";
+import { Plus, Trash2, Pencil, UtensilsCrossed, Upload, Loader2, X } from "lucide-react";
 
 type Dish = {
   id: string;
@@ -11,35 +11,74 @@ type Dish = {
   price: number;
   photo_url: string | null;
   is_available: boolean;
+  category_id: string | null;
 };
+type Category = { id: string; name: string; sort_order: number };
 
 function MenuPage() {
   const supabase = createClient();
   const { restaurant } = useActiveRestaurant();
   const [dishes, setDishes] = useState<Dish[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "" });
+  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "", category_id: "" });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
 
   async function loadDishes(rid: string) {
     const { data } = await supabase
       .from("dishes")
-      .select("id, name, description, price, photo_url, is_available")
+      .select("id, name, description, price, photo_url, is_available, category_id")
       .eq("restaurant_id", rid)
       .order("sort_order");
     setDishes(data ?? []);
   }
 
+  async function loadCategories(rid: string) {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name, sort_order")
+      .eq("restaurant_id", rid)
+      .order("sort_order");
+    setCategories(data ?? []);
+  }
+
   useEffect(() => {
-    if (restaurant) loadDishes(restaurant.id);
+    if (restaurant) {
+      loadDishes(restaurant.id);
+      loadCategories(restaurant.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
 
+  async function addCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!restaurant || !newCategoryName.trim()) return;
+    setSavingCategory(true);
+    await supabase.from("categories").insert({
+      restaurant_id: restaurant.id,
+      name: newCategoryName.trim(),
+      sort_order: categories.length,
+    });
+    setNewCategoryName("");
+    setSavingCategory(false);
+    loadCategories(restaurant.id);
+  }
+
+  async function deleteCategory(id: string) {
+    if (!restaurant) return;
+    if (!confirm("Delete this category? Dishes in it won't be deleted, just uncategorized.")) return;
+    await supabase.from("categories").delete().eq("id", id);
+    loadCategories(restaurant.id);
+    loadDishes(restaurant.id);
+  }
+
   function openNew() {
     setEditing(null);
-    setForm({ name: "", description: "", price: "", photo_url: "" });
+    setForm({ name: "", description: "", price: "", photo_url: "", category_id: "" });
     setUploadError("");
     setShowForm(true);
   }
@@ -51,6 +90,7 @@ function MenuPage() {
       description: dish.description ?? "",
       price: String(dish.price),
       photo_url: dish.photo_url ?? "",
+      category_id: dish.category_id ?? "",
     });
     setUploadError("");
     setShowForm(true);
@@ -100,6 +140,7 @@ function MenuPage() {
       description: form.description,
       price: parseFloat(form.price || "0"),
       photo_url: form.photo_url,
+      category_id: form.category_id || null,
     };
     if (editing) {
       await supabase.from("dishes").update(payload).eq("id", editing.id);
@@ -135,41 +176,83 @@ function MenuPage() {
           </button>
         </div>
 
-        <div className="space-y-2.5">
-          {dishes.map((dish, i) => (
-            <div key={dish.id} className="list-row fade-up" style={{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }}>
-              {dish.photo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={dish.photo_url} alt={dish.name} className="w-14 h-14 rounded-md object-cover" />
-              ) : (
-                <div className="w-14 h-14 rounded-md bg-creamDeep flex items-center justify-center text-inkSoft">
-                  <UtensilsCrossed size={18} strokeWidth={1.5} />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{dish.name}</p>
-                <p className="text-xs text-goldDeep mt-0.5 font-medium">₹{dish.price}</p>
-              </div>
-              <button
-                onClick={() => toggleAvailable(dish)}
-                className={`status-pill ${dish.is_available ? "status-new" : "status-cancelled"}`}
+        <div className="section-card" style={{ padding: 18, marginBottom: 18 }}>
+          <p className="text-sm font-medium mb-2.5">Categories</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {categories.map((cat) => (
+              <span
+                key={cat.id}
+                className="status-pill status-new"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
               >
-                {dish.is_available ? "Available" : "Hidden"}
-              </button>
-              <button onClick={() => openEdit(dish)} className="p-2 text-inkSoft hover:text-ink transition-colors">
-                <Pencil size={15} />
-              </button>
-              <button onClick={() => handleDelete(dish.id)} className="p-2 text-inkSoft hover:text-red-600 transition-colors">
-                <Trash2 size={15} />
-              </button>
+                {cat.name}
+                <button onClick={() => deleteCategory(cat.id)} aria-label={`Delete ${cat.name}`}>
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            {categories.length === 0 && (
+              <p className="text-xs text-inkSoft">No categories yet — add ones like "South Indian" or "Desserts" below.</p>
+            )}
+          </div>
+          <form onSubmit={addCategory} className="flex gap-2">
+            <input
+              placeholder="New category name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="flex-1 border border-ink/15 rounded-md px-3 py-2 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
+            />
+            <button type="submit" disabled={savingCategory || !newCategoryName.trim()} className="btn-gold px-4 text-xs">
+              Add
+            </button>
+          </form>
+        </div>
+
+        {[...categories, { id: "__uncategorized", name: "Uncategorized", sort_order: 999 }]
+          .map((cat) => ({ cat, items: dishes.filter((d) => (d.category_id ?? "__uncategorized") === cat.id) }))
+          .filter((g) => g.items.length > 0)
+          .map((group) => (
+            <div key={group.cat.id} className="mb-5">
+              <p className="text-xs uppercase tracking-wide text-inkSoft mb-2" style={{ letterSpacing: 1 }}>
+                {group.cat.name}
+              </p>
+              <div className="space-y-2.5">
+                {group.items.map((dish, i) => (
+                  <div key={dish.id} className="list-row fade-up" style={{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }}>
+                    {dish.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={dish.photo_url} alt={dish.name} className="w-14 h-14 rounded-md object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-md bg-creamDeep flex items-center justify-center text-inkSoft">
+                        <UtensilsCrossed size={18} strokeWidth={1.5} />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{dish.name}</p>
+                      <p className="text-xs text-goldDeep mt-0.5 font-medium">₹{dish.price}</p>
+                    </div>
+                    <button
+                      onClick={() => toggleAvailable(dish)}
+                      className={`status-pill ${dish.is_available ? "status-new" : "status-cancelled"}`}
+                    >
+                      {dish.is_available ? "Available" : "Hidden"}
+                    </button>
+                    <button onClick={() => openEdit(dish)} className="p-2 text-inkSoft hover:text-ink transition-colors">
+                      <Pencil size={15} />
+                    </button>
+                    <button onClick={() => handleDelete(dish.id)} className="p-2 text-inkSoft hover:text-red-600 transition-colors">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
-          {dishes.length === 0 && (
-            <div className="section-card text-center py-12">
-              <p className="text-sm text-inkSoft">No dishes yet — add your first one.</p>
-            </div>
-          )}
-        </div>
+        {dishes.length === 0 && (
+          <div className="section-card text-center py-12">
+            <p className="text-sm text-inkSoft">No dishes yet — add your first one.</p>
+          </div>
+        )}
 
         {showForm && (
           <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
@@ -224,6 +307,16 @@ function MenuPage() {
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
                 className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
               />
+              <select
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
+              >
+                <option value="">No category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
               <input
                 placeholder="Or paste an image URL instead"
                 value={form.photo_url}
