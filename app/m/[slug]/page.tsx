@@ -84,6 +84,8 @@ export default function CustomerMenuPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [statusToast, setStatusToast] = useState<{ status: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -124,10 +126,18 @@ export default function CustomerMenuPage() {
           setHistoryOrders((prev) =>
             prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
           );
+
+          // Pop up a toast regardless of which screen the customer is on.
+          setStatusToast({ status: updated.status });
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => setStatusToast(null), 4000);
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
 
@@ -210,6 +220,13 @@ export default function CustomerMenuPage() {
   return (
     <div className="wrap" style={{ paddingBottom: cartCount > 0 ? 88 : 0 }}>
       <Script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js" strategy="afterInteractive" />
+
+      {statusToast && (
+        <div className="status-toast" onClick={() => setStatusToast(null)}>
+          <span className="dot" />
+          Order {STATUS_LABEL[statusToast.status] ?? statusToast.status}
+        </div>
+      )}
 
       <header className="site-header">
         <div className="brand-block">
