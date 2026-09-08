@@ -71,6 +71,12 @@ const ClockIcon = () => (
     <path d="M12 7v5l3 3" />
   </svg>
 );
+const BellIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
 
 const STATUS_LABEL: Record<string, string> = {
   new: "Received",
@@ -120,6 +126,9 @@ export default function CustomerMenuPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [statusToast, setStatusToast] = useState<{ status: string } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [waiterCooldown, setWaiterCooldown] = useState(0);
+  const [waiterConfirmed, setWaiterConfirmed] = useState(false);
+  const waiterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -172,6 +181,7 @@ export default function CustomerMenuPage() {
     return () => {
       supabase.removeChannel(channel);
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
@@ -231,6 +241,24 @@ export default function CustomerMenuPage() {
     setPlacingOrder(false);
   }
 
+  async function callWaiter() {
+    if (!restaurant || waiterCooldown > 0) return;
+    setWaiterConfirmed(true);
+    setWaiterCooldown(60);
+    if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
+    waiterTimerRef.current = setInterval(() => {
+      setWaiterCooldown((c) => {
+        if (c <= 1) {
+          if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    setTimeout(() => setWaiterConfirmed(false), 4000);
+    await supabase.from("waiter_calls").insert({ restaurant_id: restaurant.id, qr_code_id: tableId, status: "pending" });
+  }
+
   async function openHistory() {
     setShowHistory(true);
     setHistoryLoading(true);
@@ -287,6 +315,23 @@ export default function CustomerMenuPage() {
           <ClockIcon /> My Orders
         </button>
       </header>
+
+      <button
+        className="call-waiter-fab"
+        onClick={callWaiter}
+        disabled={waiterCooldown > 0}
+        aria-label="Call waiter"
+      >
+        <BellIcon />
+        {waiterCooldown > 0 ? `Sent (${waiterCooldown}s)` : "Call Waiter"}
+      </button>
+
+      {waiterConfirmed && (
+        <div className="status-toast" style={{ top: 64 }}>
+          <span className="dot" />
+          Staff notified — someone's on the way
+        </div>
+      )}
 
       <section className="hero">
         {heroDish && (
