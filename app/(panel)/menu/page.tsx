@@ -12,6 +12,7 @@ type Dish = {
   photo_url: string | null;
   is_available: boolean;
   category_id: string | null;
+  is_veg: boolean;
 };
 type Category = { id: string; name: string; sort_order: number };
 
@@ -22,7 +23,7 @@ function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "", category_id: "" });
+  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -31,7 +32,7 @@ function MenuPage() {
   async function loadDishes(rid: string) {
     const { data } = await supabase
       .from("dishes")
-      .select("id, name, description, price, photo_url, is_available, category_id")
+      .select("id, name, description, price, photo_url, is_available, category_id, is_veg")
       .eq("restaurant_id", rid)
       .order("sort_order");
     setDishes(data ?? []);
@@ -78,7 +79,7 @@ function MenuPage() {
 
   function openNew() {
     setEditing(null);
-    setForm({ name: "", description: "", price: "", photo_url: "", category_id: "" });
+    setForm({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true });
     setUploadError("");
     setShowForm(true);
   }
@@ -91,6 +92,7 @@ function MenuPage() {
       price: String(dish.price),
       photo_url: dish.photo_url ?? "",
       category_id: dish.category_id ?? "",
+      is_veg: dish.is_veg,
     });
     setUploadError("");
     setShowForm(true);
@@ -141,6 +143,7 @@ function MenuPage() {
       price: parseFloat(form.price || "0"),
       photo_url: form.photo_url,
       category_id: form.category_id || null,
+      is_veg: form.is_veg,
     };
     if (editing) {
       await supabase.from("dishes").update(payload).eq("id", editing.id);
@@ -228,7 +231,22 @@ function MenuPage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{dish.name}</p>
+                      <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                        <span
+                          style={{
+                            width: 11, height: 11, flexShrink: 0,
+                            border: `1.5px solid ${dish.is_veg ? "#1c7a44" : "#b23b3b"}`,
+                            borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >
+                          {dish.is_veg ? (
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#1c7a44" }} />
+                          ) : (
+                            <span style={{ width: 0, height: 0, borderLeft: "3px solid transparent", borderRight: "3px solid transparent", borderBottom: "5px solid #b23b3b" }} />
+                          )}
+                        </span>
+                        {dish.name}
+                      </p>
                       <p className="text-xs text-goldDeep mt-0.5 font-medium">₹{dish.price}</p>
                     </div>
                     <button
@@ -317,6 +335,28 @@ function MenuPage() {
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, is_veg: true })}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm border transition-colors ${form.is_veg ? "border-green-600 bg-green-50 text-green-800" : "border-ink/15 bg-cream text-inkSoft"}`}
+                >
+                  <span style={{ width: 12, height: 12, border: "1.5px solid #1c7a44", borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#1c7a44" }} />
+                  </span>
+                  Veg
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, is_veg: false })}
+                  className={`flex-1 flex items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm border transition-colors ${!form.is_veg ? "border-red-600 bg-red-50 text-red-800" : "border-ink/15 bg-cream text-inkSoft"}`}
+                >
+                  <span style={{ width: 12, height: 12, border: "1.5px solid #b23b3b", borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ width: 0, height: 0, borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderBottom: "7px solid #b23b3b" }} />
+                  </span>
+                  Non-veg
+                </button>
+              </div>
               <input
                 placeholder="Or paste an image URL instead"
                 value={form.photo_url}
