@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2 } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 
@@ -9,6 +9,7 @@ const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/menu", label: "Menu", icon: UtensilsCrossed },
   { href: "/orders", label: "Orders", icon: ClipboardList },
+  { href: "/waiter-calls", label: "Waiter Calls", icon: Bell },
   { href: "/qr-codes", label: "QR Codes", icon: QrCode },
 ];
 
@@ -17,7 +18,7 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
-  const { isAdmin, newOrderCount } = useActiveRestaurant();
+  const { isAdmin, newOrderCount, waiterCallCount } = useActiveRestaurant();
 
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
@@ -48,6 +49,9 @@ export default function Sidebar() {
               <span>{label}</span>
               {href === "/orders" && newOrderCount > 0 && (
                 <span className="nav-badge">{newOrderCount > 9 ? "9+" : newOrderCount}</span>
+              )}
+              {href === "/waiter-calls" && waiterCallCount > 0 && (
+                <span className="nav-badge">{waiterCallCount > 9 ? "9+" : waiterCallCount}</span>
               )}
             </Link>
           );
