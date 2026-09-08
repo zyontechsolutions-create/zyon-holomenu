@@ -24,7 +24,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 function OrdersPage() {
   const supabase = createClient();
-  const { restaurant } = useActiveRestaurant();
+  const { restaurant, clearNewOrders } = useActiveRestaurant();
   const [orders, setOrders] = useState<Order[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -36,6 +36,12 @@ function OrdersPage() {
       .order("created_at", { ascending: false });
     setOrders((data as any) ?? []);
   }
+
+  // Staff has now seen the Orders page — clear the sidebar badge.
+  useEffect(() => {
+    clearNewOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
 
   useEffect(() => {
     if (!restaurant) return;
