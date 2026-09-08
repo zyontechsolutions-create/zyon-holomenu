@@ -14,10 +14,42 @@ type Dish = {
   ar_enabled: boolean;
   ar_model_url: string | null;
   category_id: string | null;
+  is_veg: boolean;
 };
 type Category = { id: string; name: string; sort_order: number };
 type Restaurant = { id: string; name: string };
 type OrderSummaryItem = { name: string; qty: number; price: number };
+
+function VegDot({ isVeg }: { isVeg: boolean }) {
+  const color = isVeg ? "#1c7a44" : "#b23b3b";
+  return (
+    <span
+      title={isVeg ? "Veg" : "Non-veg"}
+      style={{
+        display: "inline-block",
+        width: 14,
+        height: 14,
+        border: `1.5px solid ${color}`,
+        borderRadius: 2,
+        flexShrink: 0,
+        verticalAlign: "middle",
+        marginRight: 7,
+      }}
+    >
+      <span
+        style={{
+          display: "block",
+          width: isVeg ? 7 : 9,
+          height: isVeg ? 7 : 8,
+          margin: "2.5px auto",
+          borderRadius: isVeg ? "50%" : 0,
+          background: color,
+          clipPath: isVeg ? undefined : "polygon(50% 0%, 0% 100%, 100% 100%)",
+        }}
+      />
+    </span>
+  );
+}
 type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string };
 type HistoryOrder = {
   id: string;
@@ -96,7 +128,7 @@ export default function CustomerMenuPage() {
 
       const [{ data: cats }, { data: dishList }] = await Promise.all([
         supabase.from("categories").select("id, name, sort_order").eq("restaurant_id", r.id).order("sort_order"),
-        supabase.from("dishes").select("id, name, description, price, photo_url, ar_enabled, ar_model_url, category_id")
+        supabase.from("dishes").select("id, name, description, price, photo_url, ar_enabled, ar_model_url, category_id, is_veg")
           .eq("restaurant_id", r.id).eq("is_available", true).order("sort_order"),
       ]);
       setCategories(cats ?? []);
@@ -284,7 +316,7 @@ export default function CustomerMenuPage() {
               <article key={dish.id} className="dish-card" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
                 <div className="dish-photo" style={dish.photo_url ? { backgroundImage: `url('${dish.photo_url}')` } : {}} />
                 <div className="dish-info">
-                  <h3>{dish.name}</h3>
+                  <h3><VegDot isVeg={dish.is_veg} />{dish.name}</h3>
                   {dish.description && <p>{dish.description}</p>}
                   <div className="dish-actions">
                     <span className="price">₹{dish.price}</span>
@@ -367,7 +399,7 @@ export default function CustomerMenuPage() {
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {cartItems.map((item) => (
                 <div key={item.dish.id} className="history-item-row" style={{ alignItems: "center" }}>
-                  <span>{item.dish.name}</span>
+                  <span><VegDot isVeg={item.dish.is_veg} />{item.dish.name}</span>
                   <span className="qty-chip">
                     <button onClick={() => removeFromCart(item.dish.id)}>−</button>
                     <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{item.qty}</span>
