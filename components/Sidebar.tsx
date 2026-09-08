@@ -17,7 +17,7 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
-  const { isAdmin } = useActiveRestaurant();
+  const { isAdmin, newOrderCount } = useActiveRestaurant();
 
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
@@ -46,6 +46,9 @@ export default function Sidebar() {
             <Link key={href} href={`${href}${suffix}`} className={`panel-link ${active ? "active" : ""}`}>
               <Icon size={16} strokeWidth={1.8} />
               <span>{label}</span>
+              {href === "/orders" && newOrderCount > 0 && (
+                <span className="nav-badge">{newOrderCount > 9 ? "9+" : newOrderCount}</span>
+              )}
             </Link>
           );
         })}
