@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { playOrderChime } from "@/lib/notificationSound";
+import { playOrderChime, playWaiterChime } from "@/lib/notificationSound";
 
 export type ActiveRestaurant = { id: string; name: string; slug: string; status: string } | null;
 
@@ -12,6 +12,8 @@ type RestaurantContextValue = {
   loading: boolean;
   newOrderCount: number;
   clearNewOrders: () => void;
+  waiterCallCount: number;
+  clearWaiterCalls: () => void;
 };
 
 const RestaurantContext = createContext<RestaurantContextValue>({
@@ -20,6 +22,8 @@ const RestaurantContext = createContext<RestaurantContextValue>({
   loading: true,
   newOrderCount: 0,
   clearNewOrders: () => {},
+  waiterCallCount: 0,
+  clearWaiterCalls: () => {},
 });
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
@@ -32,6 +36,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [restaurant, setRestaurant] = useState<ActiveRestaurant>(null);
   const [loading, setLoading] = useState(true);
   const [newOrderCount, setNewOrderCount] = useState(0);
+  const [waiterCallCount, setWaiterCallCount] = useState(0);
 
   // Runs ONCE per session — not on every page switch.
   useEffect(() => {
@@ -121,8 +126,34 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     setNewOrderCount(0);
   }
 
+  // Call-waiter alert — same pattern as new orders, its own channel and
+  // its own chime so staff can tell the two apart without looking.
+  useEffect(() => {
+    setWaiterCallCount(0);
+    if (!restaurant) return;
+    const channel = supabase
+      .channel(`panel-waiter-calls-${restaurant.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "waiter_calls", filter: `restaurant_id=eq.${restaurant.id}` },
+        () => {
+          setWaiterCallCount((n) => n + 1);
+          playWaiterChime();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
+
+  function clearWaiterCalls() {
+    setWaiterCallCount(0);
+  }
+
   return (
-    <RestaurantContext.Provider value={{ restaurant, isAdmin, loading, newOrderCount, clearNewOrders }}>
+    <RestaurantContext.Provider
+      value={{ restaurant, isAdmin, loading, newOrderCount, clearNewOrders, waiterCallCount, clearWaiterCalls }}
+    >
       {children}
     </RestaurantContext.Provider>
   );
