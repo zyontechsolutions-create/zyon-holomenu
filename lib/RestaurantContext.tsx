@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+import { playOrderChime } from "@/lib/notificationSound";
 
 export type ActiveRestaurant = { id: string; name: string; slug: string; status: string } | null;
 
@@ -9,12 +10,16 @@ type RestaurantContextValue = {
   restaurant: ActiveRestaurant;
   isAdmin: boolean;
   loading: boolean;
+  newOrderCount: number;
+  clearNewOrders: () => void;
 };
 
 const RestaurantContext = createContext<RestaurantContextValue>({
   restaurant: null,
   isAdmin: false,
   loading: true,
+  newOrderCount: 0,
+  clearNewOrders: () => {},
 });
 
 export function RestaurantProvider({ children }: { children: ReactNode }) {
@@ -26,6 +31,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [restaurant, setRestaurant] = useState<ActiveRestaurant>(null);
   const [loading, setLoading] = useState(true);
+  const [newOrderCount, setNewOrderCount] = useState(0);
 
   // Runs ONCE per session — not on every page switch.
   useEffect(() => {
@@ -91,8 +97,32 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isAdmin, overrideId]);
 
+  // New-order alert — badge + chime, live across the whole panel (not just
+  // the Orders page), so staff notice an order even while on Menu/Dashboard.
+  useEffect(() => {
+    setNewOrderCount(0);
+    if (!restaurant) return;
+    const channel = supabase
+      .channel(`panel-new-orders-${restaurant.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
+        () => {
+          setNewOrderCount((n) => n + 1);
+          playOrderChime();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
+
+  function clearNewOrders() {
+    setNewOrderCount(0);
+  }
+
   return (
-    <RestaurantContext.Provider value={{ restaurant, isAdmin, loading }}>
+    <RestaurantContext.Provider value={{ restaurant, isAdmin, loading, newOrderCount, clearNewOrders }}>
       {children}
     </RestaurantContext.Provider>
   );
