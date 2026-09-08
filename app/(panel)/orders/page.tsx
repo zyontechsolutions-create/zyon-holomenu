@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 
-type OrderItem = { quantity: number; price_at_order: number; dishes: { name: string } | null };
+type OrderItem = { quantity: number; price_at_order: number; note: string | null; dishes: { name: string } | null };
 type Order = {
   id: string;
   status: string;
@@ -31,7 +31,7 @@ function OrdersPage() {
   async function loadOrders(rid: string) {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, total, created_at, qr_codes(label), order_items(quantity, price_at_order, dishes(name))")
+      .select("id, status, total, created_at, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
       .eq("restaurant_id", rid)
       .order("created_at", { ascending: false });
     setOrders((data as any) ?? []);
@@ -111,9 +111,16 @@ function OrdersPage() {
                 {isOpen && (
                   <div className="mt-3 pt-3 border-t border-ink/10 pl-14 space-y-1.5">
                     {(order.order_items ?? []).map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm">
-                        <span>{item.quantity}× {item.dishes?.name ?? "Unknown dish"}</span>
-                        <span className="text-inkSoft">₹{(item.quantity * item.price_at_order).toFixed(0)}</span>
+                      <div key={idx}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span>{item.quantity}× {item.dishes?.name ?? "Unknown dish"}</span>
+                          <span className="text-inkSoft">₹{(item.quantity * item.price_at_order).toFixed(0)}</span>
+                        </div>
+                        {item.note && (
+                          <p className="text-xs text-goldDeep" style={{ marginTop: -1, marginBottom: 3 }}>
+                            Note: {item.note}
+                          </p>
+                        )}
                       </div>
                     ))}
                     {(!order.order_items || order.order_items.length === 0) && (
