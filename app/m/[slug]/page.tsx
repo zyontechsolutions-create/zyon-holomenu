@@ -18,7 +18,7 @@ type Dish = {
 };
 type Category = { id: string; name: string; sort_order: number };
 type Restaurant = { id: string; name: string };
-type OrderSummaryItem = { name: string; qty: number; price: number };
+type OrderSummaryItem = { name: string; qty: number; price: number; note?: string };
 
 function VegDot({ isVeg }: { isVeg: boolean }) {
   const color = isVeg ? "#1c7a44" : "#b23b3b";
@@ -110,6 +110,7 @@ export default function CustomerMenuPage() {
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [arDish, setArDish] = useState<Dish | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
   const [placingOrder, setPlacingOrder] = useState(false);
 
   const [showReview, setShowReview] = useState(false);
@@ -182,7 +183,15 @@ export default function CustomerMenuPage() {
   function openAr(dish: Dish) { setArDish(dish); logView(dish, true); }
   function addToCart(id: string) { setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 })); }
   function removeFromCart(id: string) {
-    setCart((c) => { const n = { ...c }; if (n[id] > 1) n[id] -= 1; else delete n[id]; return n; });
+    setCart((c) => {
+      const n = { ...c };
+      if (n[id] > 1) n[id] -= 1;
+      else {
+        delete n[id];
+        setCartNotes((notes) => { const nn = { ...notes }; delete nn[id]; return nn; });
+      }
+      return n;
+    });
   }
 
   const cartItems = useMemo(
@@ -200,17 +209,24 @@ export default function CustomerMenuPage() {
       .select("id").single();
     if (error || !order) { setPlacingOrder(false); return; }
     await supabase.from("order_items").insert(
-      cartItems.map((i) => ({ order_id: order.id, dish_id: i.dish.id, quantity: i.qty, price_at_order: i.dish.price }))
+      cartItems.map((i) => ({
+        order_id: order.id,
+        dish_id: i.dish.id,
+        quantity: i.qty,
+        price_at_order: i.dish.price,
+        note: cartNotes[i.dish.id]?.trim() || null,
+      }))
     );
 
     addStoredOrderId(slug, order.id);
     setLastOrder({
       id: order.id,
-      items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price })),
+      items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price, note: cartNotes[i.dish.id]?.trim() || undefined })),
       total: cartTotal,
       status: "new",
     });
     setCart({});
+    setCartNotes({});
     setShowReview(false);
     setPlacingOrder(false);
   }
@@ -398,14 +414,32 @@ export default function CustomerMenuPage() {
             </p>
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {cartItems.map((item) => (
-                <div key={item.dish.id} className="history-item-row" style={{ alignItems: "center" }}>
-                  <span><VegDot isVeg={item.dish.is_veg} />{item.dish.name}</span>
-                  <span className="qty-chip">
-                    <button onClick={() => removeFromCart(item.dish.id)}>−</button>
-                    <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{item.qty}</span>
-                    <button onClick={() => addToCart(item.dish.id)}>+</button>
-                  </span>
-                  <span>₹{(item.dish.price * item.qty).toFixed(0)}</span>
+                <div key={item.dish.id} style={{ marginBottom: 10 }}>
+                  <div className="history-item-row" style={{ alignItems: "center" }}>
+                    <span><VegDot isVeg={item.dish.is_veg} />{item.dish.name}</span>
+                    <span className="qty-chip">
+                      <button onClick={() => removeFromCart(item.dish.id)}>−</button>
+                      <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{item.qty}</span>
+                      <button onClick={() => addToCart(item.dish.id)}>+</button>
+                    </span>
+                    <span>₹{(item.dish.price * item.qty).toFixed(0)}</span>
+                  </div>
+                  <input
+                    value={cartNotes[item.dish.id] ?? ""}
+                    onChange={(e) => setCartNotes((n) => ({ ...n, [item.dish.id]: e.target.value }))}
+                    placeholder="Add a note (e.g. no onions, extra spicy)"
+                    maxLength={140}
+                    style={{
+                      width: "100%",
+                      marginTop: 4,
+                      fontSize: 12,
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(30,27,22,0.15)",
+                      background: "rgba(30,27,22,0.03)",
+                      color: "#1E1B16",
+                    }}
+                  />
                 </div>
               ))}
               {cartItems.length === 0 && (
@@ -446,9 +480,12 @@ export default function CustomerMenuPage() {
             </div>
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {lastOrder.items.map((item, idx) => (
-                <div key={idx} className="history-item-row">
-                  <span>{item.qty}× {item.name}</span>
-                  <span>₹{(item.qty * item.price).toFixed(0)}</span>
+                <div key={idx}>
+                  <div className="history-item-row">
+                    <span>{item.qty}× {item.name}</span>
+                    <span>₹{(item.qty * item.price).toFixed(0)}</span>
+                  </div>
+                  {item.note && <p className="ar-note" style={{ fontSize: 11.5, margin: "-2px 0 6px" }}>Note: {item.note}</p>}
                 </div>
               ))}
               <div className="history-total">
