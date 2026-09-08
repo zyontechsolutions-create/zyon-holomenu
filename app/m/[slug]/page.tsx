@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Script from "next/script";
 import { createClient } from "@/lib/supabaseClient";
+import { playOrderChime } from "@/lib/notificationSound";
 
 type Dish = {
   id: string;
@@ -129,6 +130,7 @@ export default function CustomerMenuPage() {
 
           // Pop up a toast regardless of which screen the customer is on.
           setStatusToast({ status: updated.status });
+          playOrderChime();
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setStatusToast(null), 4000);
         }
