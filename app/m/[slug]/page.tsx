@@ -150,7 +150,9 @@ export default function CustomerMenuPage() {
 
       // Log a real page visit (dish_id left null) so "Total Views" on the
       // dashboard reflects actual traffic, not just AR previews.
-      supabase.from("menu_views").insert({ restaurant_id: r.id, dish_id: null, viewed_ar: false });
+      supabase.from("menu_views").insert({ restaurant_id: r.id, dish_id: null, viewed_ar: false }).then(({ error }) => {
+        if (error) console.error("menu_views insert failed:", error);
+      });
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
