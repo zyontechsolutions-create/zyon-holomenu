@@ -147,6 +147,10 @@ export default function CustomerMenuPage() {
       setLoading(false);
 
       if (tableId) supabase.rpc("increment_qr_scan", { qr_id: tableId });
+
+      // Log a real page visit (dish_id left null) so "Total Views" on the
+      // dashboard reflects actual traffic, not just AR previews.
+      supabase.from("menu_views").insert({ restaurant_id: r.id, dish_id: null, viewed_ar: false });
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
