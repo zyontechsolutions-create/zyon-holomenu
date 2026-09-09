@@ -2,9 +2,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
-import { Plus, ArrowRight, Building2 } from "lucide-react";
+import { Plus, ArrowRight, Building2, Pencil } from "lucide-react";
 
-type Restaurant = { id: string; name: string; slug: string; plan: string; status: string; created_at: string; dish_count?: number };
+type Restaurant = { id: string; name: string; slug: string; plan: string | null; paid_until: string | null; status: string; created_at: string; dish_count?: number };
+
+function planStatus(paidUntil: string | null): { label: string; tone: "ok" | "soon" | "over" | "none" } {
+  if (!paidUntil) return { label: "No date set", tone: "none" };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(paidUntil + "T00:00:00");
+  const daysLeft = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return { label: `Overdue ${Math.abs(daysLeft)}d`, tone: "over" };
+  if (daysLeft <= 5) return { label: `Due in ${daysLeft}d`, tone: "soon" };
+  return { label: `Paid until ${due.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`, tone: "ok" };
+}
 
 export default function AdminPage() {
   const supabase = createClient();
@@ -14,6 +24,9 @@ export default function AdminPage() {
   const [form, setForm] = useState({ name: "", slug: "", owner_id: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editingPlan, setEditingPlan] = useState<Restaurant | null>(null);
+  const [planForm, setPlanForm] = useState({ plan: "", paid_until: "" });
+  const [savingPlan, setSavingPlan] = useState(false);
 
   async function load() {
     const { data: userData } = await supabase.auth.getUser();
@@ -25,7 +38,7 @@ export default function AdminPage() {
     setIsAdmin(true);
 
     const { data: restaurantList } = await supabase
-      .from("restaurants").select("id, name, slug, plan, status, created_at").order("created_at", { ascending: false });
+      .from("restaurants").select("id, name, slug, plan, paid_until, status, created_at").order("created_at", { ascending: false });
 
     const withCounts = await Promise.all(
       (restaurantList ?? []).map(async (r) => {
@@ -57,6 +70,24 @@ export default function AdminPage() {
 
   async function approveRestaurant(id: string) {
     await supabase.from("restaurants").update({ status: "active" }).eq("id", id);
+    load();
+  }
+
+  function openPlanEditor(r: Restaurant) {
+    setEditingPlan(r);
+    setPlanForm({ plan: r.plan ?? "", paid_until: r.paid_until ?? "" });
+  }
+
+  async function savePlan(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingPlan) return;
+    setSavingPlan(true);
+    await supabase.from("restaurants").update({
+      plan: planForm.plan || null,
+      paid_until: planForm.paid_until || null,
+    }).eq("id", editingPlan.id);
+    setSavingPlan(false);
+    setEditingPlan(null);
     load();
   }
 
@@ -102,10 +133,18 @@ export default function AdminPage() {
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-inkSoft mt-0.5">
-                  /m/{r.slug} · {r.dish_count} dish{r.dish_count !== 1 ? "es" : ""} · {r.plan}
+                <p className="text-xs text-inkSoft mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>/m/{r.slug} · {r.dish_count} dish{r.dish_count !== 1 ? "es" : "" }{r.plan ? ` · ${r.plan}` : ""}</span>
+                  {(() => {
+                    const s = planStatus(r.paid_until);
+                    const color = s.tone === "ok" ? "#1c7a44" : s.tone === "soon" ? "#8C6428" : s.tone === "over" ? "#b23b3b" : "#9a9284";
+                    return <span style={{ color, fontWeight: 600, fontSize: 11 }}>{s.label}</span>;
+                  })()}
                 </p>
               </div>
+              <button onClick={() => openPlanEditor(r)} className="p-2 text-inkSoft hover:text-ink transition-colors" aria-label="Edit plan">
+                <Pencil size={15} />
+              </button>
               {r.status === "pending" ? (
                 <button onClick={() => approveRestaurant(r.id)} className="btn-gold flex items-center gap-2 text-xs">
                   Approve
@@ -155,6 +194,41 @@ export default function AdminPage() {
                   {saving ? "Adding..." : "Add restaurant"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)}
+                  className="flex-1 py-2.5 text-sm text-inkSoft border border-ink/15 rounded-full hover:bg-creamDeep">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {editingPlan && (
+          <div className="fixed inset-0 bg-ink/40 flex items-center justify-center p-6 z-50 backdrop-blur-sm">
+            <form onSubmit={savePlan} className="section-card w-full max-w-md space-y-3">
+              <h2 style={{ fontSize: 20, fontFamily: "'Playfair Display', serif", fontWeight: 600, color: "#1E1B16", textTransform: "none", letterSpacing: 0 }}>
+                {editingPlan.name} — plan &amp; billing
+              </h2>
+              <p className="text-xs text-inkSoft" style={{ marginBottom: 4 }}>
+                Manual tracking only — nothing here charges or notifies the restaurant automatically.
+              </p>
+              <input
+                placeholder="Plan (e.g. Basic, Pro)" value={planForm.plan}
+                onChange={(e) => setPlanForm({ ...planForm, plan: e.target.value })}
+                className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold"
+              />
+              <div>
+                <label className="text-xs text-inkSoft mb-1 block">Paid until</label>
+                <input
+                  type="date" value={planForm.paid_until}
+                  onChange={(e) => setPlanForm({ ...planForm, paid_until: e.target.value })}
+                  className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={savingPlan} className="btn-gold flex-1 py-2.5">
+                  {savingPlan ? "Saving..." : "Save"}
+                </button>
+                <button type="button" onClick={() => setEditingPlan(null)}
                   className="flex-1 py-2.5 text-sm text-inkSoft border border-ink/15 rounded-full hover:bg-creamDeep">
                   Cancel
                 </button>
