@@ -49,3 +49,31 @@ export function playWaiterChime() {
     // ignore
   }
 }
+
+// Safari (and some other browsers) only allow audio.play() to succeed when
+// it's called directly inside a real click/tap — a play() triggered later
+// by a realtime event (a new order, a waiter call) gets silently blocked,
+// no matter how much the page was clicked beforehand. Calling this once,
+// directly inside an onClick handler, "unlocks" both audio elements for
+// the rest of the session so later automatic plays succeed.
+export function unlockAudioPlayback() {
+  [getAudio("order"), getAudio("waiter")].forEach((audio) => {
+    if (!audio) return;
+    try {
+      const original = audio.volume;
+      audio.volume = 0;
+      audio
+        .play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.volume = original;
+        })
+        .catch(() => {
+          audio.volume = original;
+        });
+    } catch {
+      // ignore
+    }
+  });
+}
