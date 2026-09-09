@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2 } from "lucide-react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
+import { unlockAudioPlayback } from "@/lib/notificationSound";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -22,6 +24,13 @@ export default function Sidebar() {
 
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
+  const [soundEnabled, setSoundEnabled] = useState(false);
+
+  function handleEnableSound() {
+    unlockAudioPlayback();
+    setSoundEnabled(true);
+    setTimeout(() => setSoundEnabled(false), 2500);
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -58,6 +67,10 @@ export default function Sidebar() {
         })}
       </nav>
       <div className="panel-foot">
+        <button onClick={handleEnableSound} className="panel-link w-full">
+          <Volume2 size={16} strokeWidth={1.8} />
+          <span>{soundEnabled ? "Sound enabled ✓" : "Enable sound alerts"}</span>
+        </button>
         <button onClick={handleLogout} className="panel-link w-full">
           <LogOut size={16} strokeWidth={1.8} />
           <span>Log out</span>
