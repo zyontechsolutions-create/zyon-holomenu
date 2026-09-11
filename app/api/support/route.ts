@@ -17,11 +17,13 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-    const { data: ticket, error: dbError } = await supabase
+    // Note: we don't chain .select() here — the public/anon actor is only
+    // allowed to INSERT, not read back, the row it just created (only
+    // admins can SELECT from this table). Asking for the row back would
+    // itself trip an RLS violation even though the insert is allowed.
+    const { error: dbError } = await supabase
       .from("support_tickets")
-      .insert({ name: name.trim(), email: email.trim(), message: message.trim() })
-      .select("id")
-      .single();
+      .insert({ name: name.trim(), email: email.trim(), message: message.trim() });
 
     if (dbError) {
       return NextResponse.json({ error: "Couldn't save your ticket. Please try again." }, { status: 500 });
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
           to: SUPPORT_INBOX,
           replyTo: email.trim(),
           subject: `New support ticket from ${name.trim()}`,
-          text: `From: ${name.trim()} <${email.trim()}>\nTicket ID: ${ticket?.id}\n\n${message.trim()}`,
+          text: `From: ${name.trim()} <${email.trim()}>\n\n${message.trim()}`,
         });
       } catch {
         // Swallow — the ticket itself is already safely stored.
