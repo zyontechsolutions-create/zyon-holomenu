@@ -148,6 +148,11 @@ export default function SignupPage() {
             {loading ? "Setting up..." : "Create my menu"}
           </button>
         </form>
+        <p style={{ fontSize: 11.5, color: "#6b6455", textAlign: "center", marginTop: 14 }}>
+          By creating an account you agree to our{" "}
+          <a href="/terms" style={{ color: "#8C6428" }}>Terms of Service</a> and{" "}
+          <a href="/privacy" style={{ color: "#8C6428" }}>Privacy Policy</a>.
+        </p>
 
         <p className="text-xs text-inkSoft mt-5 text-center">
           Already have an account? <a href="/login" className="text-goldDeep">Sign in</a>
