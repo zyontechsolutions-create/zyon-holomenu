@@ -25,8 +25,9 @@ export async function POST(req: Request) {
       .from("support_tickets")
       .insert({ name: name.trim(), email: email.trim(), message: message.trim() });
 
-    if (dbError) {
-      return NextResponse.json({ error: "Couldn't save your ticket. Please try again." }, { status: 500 });
+        if (dbError) {
+      console.error("support_tickets insert error:", dbError);
+      return NextResponse.json({ error: `DEBUG: ${dbError.message}` }, { status: 500 });
     }
 
     // Email notification is best-effort — the ticket is already saved and
