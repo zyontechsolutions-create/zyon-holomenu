@@ -82,7 +82,7 @@ export default function PrivacyPage() {
       <p>We may update this policy as the product changes. Material changes will be communicated to restaurant owners.</p>
 
       <h2>Contact</h2>
-      <p>Questions or requests about your data: [YOUR CONTACT EMAIL — fill in]</p>
+      <p>Questions or requests about your data — <a href="/support" style={{ color: "#8C6428" }}>raise a ticket</a> and we&apos;ll get back to you.</p>
 
       <hr style={{ margin: "40px 0", border: "none", borderTop: "1px solid rgba(30,27,22,0.1)" }} />
       <p style={{ fontSize: 12, color: "#6b6455" }}>
