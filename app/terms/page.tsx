@@ -3,13 +3,8 @@ export default function TermsPage() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 24px", fontFamily: "Georgia, serif", lineHeight: 1.65, color: "#1E1B16" }}>
       <p style={{ fontSize: 12, color: "#8C6428", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Zyon Tech Solutions</p>
       <h1 style={{ fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>Terms of Service</h1>
-      <p style={{ fontSize: 13, color: "#6b6455", marginBottom: 36 }}>Last updated: [DATE — fill in when you publish this]</p>
-
-      <p style={{ fontSize: 13, background: "#f5f0e4", padding: 16, borderRadius: 8, marginBottom: 32 }}>
-        This is a plain-language starting draft, not a substitute for a lawyer&apos;s review. Read the note at the
-        end before relying on it for real customers.
-      </p>
-
+<p style={{ fontSize: 13, color: "#6b6455", marginBottom: 36 }}>Last updated: September 11, 2026</p>
+        
       <h2>1. Who this applies to</h2>
       <p>
         These terms are between Zyon Tech Solutions (&quot;we&quot;, &quot;us&quot;) and the restaurant or business
@@ -88,14 +83,6 @@ export default function TermsPage() {
 
       <h2>13. Contact</h2>
       <p>Questions about these terms — <a href="/support" style={{ color: "#8C6428" }}>raise a ticket</a> and we&apos;ll get back to you.</p>
-
-      <hr style={{ margin: "40px 0", border: "none", borderTop: "1px solid rgba(30,27,22,0.1)" }} />
-      <p style={{ fontSize: 12, color: "#6b6455" }}>
-        Note: this draft was written to match how Zyon HoloMenu actually works today — manual billing, no in-app
-        payments, minimal customer data collection. If the product changes (in-app payments, customer accounts,
-        automated billing), this document needs updating to match. Before relying on this for paying customers,
-        have a lawyer review it against your specific situation and current Indian law.
-      </p>
-    </div>
+      </div>
   );
 }
