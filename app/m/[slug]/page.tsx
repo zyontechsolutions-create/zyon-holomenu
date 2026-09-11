@@ -416,7 +416,9 @@ export default function CustomerMenuPage() {
         <div className="footer-brand">{restaurant.name}<span>POWERED BY ZYON HOLOMENU</span></div>
         <p className="footer-note">Every dish on this menu can be previewed true to size, right on your table, before you order.</p>
         <hr className="footer-rule" />
-        <div className="footer-meta">Zyon Tech Solutions</div>
+        <div className="footer-meta">
+          Zyon Tech Solutions · <a href="/terms" style={{ color: "inherit" }}>Terms</a> · <a href="/privacy" style={{ color: "inherit" }}>Privacy</a>
+        </div>
       </footer>
 
       {/* AR bottom sheet */}
