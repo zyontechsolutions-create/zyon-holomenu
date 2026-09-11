@@ -3,13 +3,7 @@ export default function PrivacyPage() {
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "60px 24px", fontFamily: "Georgia, serif", lineHeight: 1.65, color: "#1E1B16" }}>
       <p style={{ fontSize: 12, color: "#8C6428", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Zyon Tech Solutions</p>
       <h1 style={{ fontFamily: "'Playfair Display', serif", marginBottom: 4 }}>Privacy Policy</h1>
-      <p style={{ fontSize: 13, color: "#6b6455", marginBottom: 36 }}>Last updated: [DATE — fill in when you publish this]</p>
-
-      <p style={{ fontSize: 13, background: "#f5f0e4", padding: 16, borderRadius: 8, marginBottom: 32 }}>
-        This is a plain-language starting draft, not a substitute for a lawyer&apos;s review. Read the note at the
-        end before relying on it for real customers.
-      </p>
-
+<p style={{ fontSize: 13, color: "#6b6455", marginBottom: 36 }}>Last updated: September 11, 2026</p>
       <h2>Who we are</h2>
       <p>
         Zyon Tech Solutions operates Zyon HoloMenu, a digital menu and ordering tool for restaurants. This policy
@@ -84,15 +78,6 @@ export default function PrivacyPage() {
       <h2>Contact</h2>
       <p>Questions or requests about your data — <a href="/support" style={{ color: "#8C6428" }}>raise a ticket</a> and we&apos;ll get back to you.</p>
 
-      <hr style={{ margin: "40px 0", border: "none", borderTop: "1px solid rgba(30,27,22,0.1)" }} />
-      <p style={{ fontSize: 12, color: "#6b6455" }}>
-        Note: this draft reflects what Zyon HoloMenu actually collects today — no customer accounts, no in-app
-        payments, minimal personal data. If you later add customer accounts, phone-based order tracking, loyalty
-        programs, or in-app payments, this document needs real updates to match, since those would meaningfully
-        change what personal data you handle. Before relying on this for paying customers, have a lawyer review it
-        against your specific situation and current Indian law (including the Digital Personal Data Protection
-        Act as its rules come into force).
-      </p>
     </div>
   );
 }
