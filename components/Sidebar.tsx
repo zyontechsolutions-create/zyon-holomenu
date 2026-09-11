@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2 } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
@@ -48,6 +48,12 @@ export default function Sidebar() {
           <Link href="/admin" className={`panel-link ${pathname === "/admin" ? "active" : ""}`}>
             <Building2 size={16} strokeWidth={1.8} />
             <span>All Restaurants</span>
+          </Link>
+        )}
+        {isAdmin && (
+          <Link href="/tickets" className={`panel-link ${pathname === "/tickets" ? "active" : ""}`}>
+            <Mail size={16} strokeWidth={1.8} />
+            <span>Support Tickets</span>
           </Link>
         )}
         {links.map(({ href, label, icon: Icon }) => {
