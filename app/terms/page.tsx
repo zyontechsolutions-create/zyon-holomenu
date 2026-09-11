@@ -87,7 +87,7 @@ export default function TermsPage() {
       <p>These terms are governed by the laws of India.</p>
 
       <h2>13. Contact</h2>
-      <p>Questions about these terms: [YOUR CONTACT EMAIL — fill in]</p>
+      <p>Questions about these terms — <a href="/support" style={{ color: "#8C6428" }}>raise a ticket</a> and we&apos;ll get back to you.</p>
 
       <hr style={{ margin: "40px 0", border: "none", borderTop: "1px solid rgba(30,27,22,0.1)" }} />
       <p style={{ fontSize: 12, color: "#6b6455" }}>
