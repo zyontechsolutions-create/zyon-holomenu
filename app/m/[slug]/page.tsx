@@ -417,7 +417,7 @@ export default function CustomerMenuPage() {
         <p className="footer-note">Every dish on this menu can be previewed true to size, right on your table, before you order.</p>
         <hr className="footer-rule" />
         <div className="footer-meta">
-          Zyon Tech Solutions · <a href="/terms" style={{ color: "inherit" }}>Terms</a> · <a href="/privacy" style={{ color: "inherit" }}>Privacy</a>
+          Zyon Tech Solutions · <a href="/terms" style={{ color: "inherit" }}>Terms</a> · <a href="/privacy" style={{ color: "inherit" }}>Privacy</a> · <a href="/support" style={{ color: "inherit" }}>Support</a>
         </div>
       </footer>
 
