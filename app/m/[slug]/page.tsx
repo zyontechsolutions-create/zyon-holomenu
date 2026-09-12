@@ -129,7 +129,12 @@ export default function CustomerMenuPage() {
   const [waiterCooldown, setWaiterCooldown] = useState(0);
   const [waiterConfirmed, setWaiterConfirmed] = useState(false);
   const waiterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+// Lock background scroll whenever any full-screen overlay is open
+useEffect(() => {
+  const anyModalOpen = showReview || !!arDish || showHistory || !!lastOrder;
+  document.body.style.overflow = anyModalOpen ? "hidden" : "";
+  return () => { document.body.style.overflow = ""; };
+}, [showReview, arDish, showHistory, lastOrder]);
   useEffect(() => {
     async function load() {
       const { data: r } = await supabase.from("restaurants").select("id, name").eq("slug", slug).single();
