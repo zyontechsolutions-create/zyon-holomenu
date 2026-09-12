@@ -101,6 +101,10 @@ function addStoredOrderId(slug: string, id: string) {
   const next = [id, ...ids.filter((x) => x !== id)].slice(0, 20);
   localStorage.setItem(historyKey(slug), JSON.stringify(next));
 }
+function waiterKey(slug: string) {
+  return `holomenu-waiter-${slug}`;
+}
+const WAITER_COOLDOWN_SECONDS = 60;
 
 export default function CustomerMenuPage() {
   const supabase = createClient();
@@ -129,12 +133,38 @@ export default function CustomerMenuPage() {
   const [waiterCooldown, setWaiterCooldown] = useState(0);
   const [waiterConfirmed, setWaiterConfirmed] = useState(false);
   const waiterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-// Lock background scroll whenever any full-screen overlay is open
-useEffect(() => {
-  const anyModalOpen = showReview || !!arDish || showHistory || !!lastOrder;
-  document.body.style.overflow = anyModalOpen ? "hidden" : "";
-  return () => { document.body.style.overflow = ""; };
-}, [showReview, arDish, showHistory, lastOrder]);
+
+  // Lock background scroll whenever any full-screen overlay is open
+  useEffect(() => {
+    const anyModalOpen = showReview || !!arDish || showHistory || !!lastOrder;
+    document.body.style.overflow = anyModalOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [showReview, arDish, showHistory, lastOrder]);
+
+  function startWaiterCooldown(seconds: number) {
+    setWaiterCooldown(seconds);
+    if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
+    waiterTimerRef.current = setInterval(() => {
+      setWaiterCooldown((c) => {
+        if (c <= 1) {
+          if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  }
+
+  // Resume an in-progress cooldown after a refresh, instead of losing it
+  useEffect(() => {
+    const last = localStorage.getItem(waiterKey(slug));
+    if (!last) return;
+    const elapsed = Math.floor((Date.now() - Number(last)) / 1000);
+    const remaining = WAITER_COOLDOWN_SECONDS - elapsed;
+    if (remaining > 0) startWaiterCooldown(remaining);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
   useEffect(() => {
     async function load() {
       const { data: r } = await supabase.from("restaurants").select("id, name").eq("slug", slug).single();
@@ -255,17 +285,8 @@ useEffect(() => {
   async function callWaiter() {
     if (!restaurant || waiterCooldown > 0) return;
     setWaiterConfirmed(true);
-    setWaiterCooldown(60);
-    if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
-    waiterTimerRef.current = setInterval(() => {
-      setWaiterCooldown((c) => {
-        if (c <= 1) {
-          if (waiterTimerRef.current) clearInterval(waiterTimerRef.current);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
+    localStorage.setItem(waiterKey(slug), String(Date.now()));
+    startWaiterCooldown(WAITER_COOLDOWN_SECONDS);
     setTimeout(() => setWaiterConfirmed(false), 4000);
     await supabase.from("waiter_calls").insert({ restaurant_id: restaurant.id, qr_code_id: tableId, status: "pending" });
   }
