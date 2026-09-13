@@ -10,6 +10,7 @@ type Order = {
   status: string;
   total: number;
   created_at: string;
+  paid: boolean;
   qr_codes: { label: string } | null;
   order_items: OrderItem[];
 };
@@ -31,7 +32,7 @@ function OrdersPage() {
   async function loadOrders(rid: string) {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, total, created_at, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
+      .select("id, status, total, created_at, paid, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
       .eq("restaurant_id", rid)
       .order("created_at", { ascending: false });
     setOrders((data as any) ?? []);
@@ -60,6 +61,11 @@ function OrdersPage() {
 
   async function updateStatus(id: string, status: string) {
     await supabase.from("orders").update({ status }).eq("id", id);
+    if (restaurant) loadOrders(restaurant.id);
+  }
+
+  async function togglePaid(id: string, current: boolean) {
+    await supabase.from("orders").update({ paid: !current }).eq("id", id);
     if (restaurant) loadOrders(restaurant.id);
   }
 
@@ -93,6 +99,18 @@ function OrdersPage() {
                     <p className="text-xs text-inkSoft mt-0.5">
                       {new Date(order.created_at).toLocaleString()}
                     </p>
+                  </button>
+                  <button
+                    onClick={() => togglePaid(order.id, order.paid)}
+                    className="status-pill"
+                    style={{
+                      background: order.paid ? "#e1f0e5" : "#fbe4e4",
+                      color: order.paid ? "#1c7a44" : "#b23b3b",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {order.paid ? "Paid" : "Unpaid"}
                   </button>
                   <select
                     value={order.status}
