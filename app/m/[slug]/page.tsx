@@ -578,7 +578,7 @@ export default function CustomerMenuPage() {
               </div>
             </div>
             {restaurant.upi_id && (
-              
+              <a
                 href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
                 className="ar-launch"
                 style={{ display: "block", textAlign: "center", textDecoration: "none", marginBottom: 10 }}
@@ -623,7 +623,7 @@ export default function CustomerMenuPage() {
                       <span>₹{o.total}</span>
                     </div>
                     {restaurant.upi_id && o.status !== "cancelled" && (
-                      
+                      <a
                         href={buildUpiLink(restaurant.upi_id, restaurant.name, o.total, `Order ${o.id.slice(0, 8)}`)}
                         className="ar-launch"
                         style={{ textDecoration: "none", marginTop: 10 }}
