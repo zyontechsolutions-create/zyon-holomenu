@@ -17,7 +17,12 @@ type Dish = {
   is_veg: boolean;
 };
 type Category = { id: string; name: string; sort_order: number };
-type Restaurant = { id: string; name: string };
+type Restaurant = { id: string; name: string; upi_id: string | null };
+
+function buildUpiLink(upiId: string, payeeName: string, amount: number, note: string) {
+  const params = new URLSearchParams({ pa: upiId, pn: payeeName, am: amount.toFixed(2), cu: "INR", tn: note });
+  return `upi://pay?${params.toString()}`;
+}
 type OrderSummaryItem = { name: string; qty: number; price: number; note?: string };
 
 function VegDot({ isVeg }: { isVeg: boolean }) {
@@ -167,7 +172,7 @@ export default function CustomerMenuPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: r } = await supabase.from("restaurants").select("id, name").eq("slug", slug).single();
+      const { data: r } = await supabase.from("restaurants").select("id, name, upi_id").eq("slug", slug).single();
       if (!r) { setLoading(false); return; }
       setRestaurant(r);
 
@@ -572,6 +577,15 @@ export default function CustomerMenuPage() {
                 <span>₹{lastOrder.total.toFixed(0)}</span>
               </div>
             </div>
+            {restaurant.upi_id && (
+              
+                href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
+                className="ar-launch"
+                style={{ display: "block", textAlign: "center", textDecoration: "none", marginBottom: 10 }}
+              >
+                Pay ₹{lastOrder.total.toFixed(0)} via UPI
+              </a>
+            )}
             <button className="ar-launch" onClick={() => setLastOrder(null)}>Back to menu</button>
           </div>
         </div>
@@ -608,6 +622,15 @@ export default function CustomerMenuPage() {
                       <span>Total</span>
                       <span>₹{o.total}</span>
                     </div>
+                    {restaurant.upi_id && o.status !== "cancelled" && (
+                      
+                        href={buildUpiLink(restaurant.upi_id, restaurant.name, o.total, `Order ${o.id.slice(0, 8)}`)}
+                        className="ar-launch"
+                        style={{ textDecoration: "none", marginTop: 10 }}
+                      >
+                        Pay ₹{o.total.toFixed(0)} via UPI
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
