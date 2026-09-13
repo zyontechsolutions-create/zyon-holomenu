@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail, Settings } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
@@ -13,6 +13,7 @@ const links = [
   { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/waiter-calls", label: "Waiter Calls", icon: Bell },
   { href: "/qr-codes", label: "QR Codes", icon: QrCode },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export default function Sidebar() {
