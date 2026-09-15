@@ -525,10 +525,10 @@ export default function CustomerMenuPage() {
                           <ScanIcon /> View on Table
                         </button>
                       )}
-                      {cart[dish.id] ? (
+                      {activeCart[dish.id] ? (
                         <span className="qty-chip">
                           <button onClick={() => removeFromCart(dish.id)}>−</button>
-                          <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{cart[dish.id]}</span>
+                          <span style={{ fontSize: 12, minWidth: 12, textAlign: "center" }}>{activeCart[dish.id]}</span>
                           <button onClick={() => addToCart(dish.id)}>+</button>
                         </span>
                       ) : (
