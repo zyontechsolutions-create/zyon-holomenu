@@ -300,9 +300,23 @@ export default function CustomerMenuPage() {
 
   async function adjustSharedCart(dishId: string, delta: number) {
     if (!restaurant || !tableId) return;
+
+    // Update the screen immediately for whoever tapped — don't make them
+    // wait for a database round trip just to see their own tap register.
+    // Other phones at the table still pick up the change via realtime,
+    // same as before; this just removes the delay for the tapper.
+    setSharedCart((c) => {
+      const next = { ...c };
+      const newQty = (next[dishId] ?? 0) + delta;
+      if (newQty <= 0) delete next[dishId];
+      else next[dishId] = newQty;
+      return next;
+    });
+
     // First device to add anything to an empty table becomes the host —
     // the only one allowed to confirm the final order for this round.
     if (delta > 0 && !hostToken) {
+      setHostToken((h) => h ?? deviceTokenRef.current);
       await supabase.from("table_sessions").upsert(
         { restaurant_id: restaurant.id, qr_code_id: tableId, host_token: deviceTokenRef.current },
         { onConflict: "qr_code_id", ignoreDuplicates: true }
@@ -585,7 +599,7 @@ export default function CustomerMenuPage() {
         <div className="cart-bar">
           <span style={{ fontSize: 13 }}>
             {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{cartTotal.toFixed(0)}
-            {tableId && <span style={{ display: "block", fontSize: 10.5, opacity: 0.75, marginTop: 2 }}>Shared table cart</span>}
+            {tableId && !isHost && <span style={{ display: "block", fontSize: 10.5, opacity: 0.75, marginTop: 2 }}>Shared table cart</span>}
           </span>
           <button onClick={() => setShowReview(true)}>Review order</button>
         </div>
@@ -598,7 +612,7 @@ export default function CustomerMenuPage() {
             <button className="ar-close" onClick={() => setShowReview(false)}>×</button>
             <h3 style={{ textAlign: "center" }}>Review your order</h3>
             <p className="ar-note" style={{ textAlign: "center", marginBottom: 18 }}>
-              {tableId
+              {tableId && !isHost
                 ? "Everyone at this table shares this cart — add whatever you like."
                 : "Check everything before it goes to the kitchen."}
             </p>
