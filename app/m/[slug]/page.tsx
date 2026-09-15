@@ -150,8 +150,10 @@ export default function CustomerMenuPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [statusToast, setStatusToast] = useState<{ status: string } | null>(null);
+  const [statusToast, setStatusToast] = useState<{ text: string } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const knownStatusRef = useRef<Record<string, string>>({});
+  const knownPaidRef = useRef<Record<string, boolean>>({});
   const [waiterCooldown, setWaiterCooldown] = useState(0);
   const [waiterConfirmed, setWaiterConfirmed] = useState(false);
   const waiterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -268,7 +270,7 @@ export default function CustomerMenuPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
         (payload) => {
-          const updated = payload.new as { id: string; status: string };
+          const updated = payload.new as { id: string; status: string; paid: boolean };
           if (!getStoredOrderIds(slug).includes(updated.id)) return;
 
           setLastOrder((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status } : prev));
@@ -276,8 +278,19 @@ export default function CustomerMenuPage() {
             prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
           );
 
-          // Pop up a toast regardless of which screen the customer is on.
-          setStatusToast({ status: updated.status });
+          const previousStatus = knownStatusRef.current[updated.id];
+          const previousPaid = knownPaidRef.current[updated.id];
+          knownStatusRef.current[updated.id] = updated.status;
+          knownPaidRef.current[updated.id] = updated.paid;
+
+          const statusChanged = previousStatus !== undefined && previousStatus !== updated.status;
+          const justPaid = previousPaid === false && updated.paid === true;
+
+          if (!statusChanged && !justPaid) return;
+
+          setStatusToast({
+            text: justPaid ? "Payment received — thank you!" : `Order ${STATUS_LABEL[updated.status] ?? updated.status}`,
+          });
           playOrderChime();
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setStatusToast(null), 4000);
@@ -386,6 +399,8 @@ export default function CustomerMenuPage() {
     );
 
     addStoredOrderId(slug, order.id);
+    knownStatusRef.current[order.id] = "new";
+    knownPaidRef.current[order.id] = false;
     setLastOrder({
       id: order.id,
       items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price, note: cartNotes[i.dish.id]?.trim() || undefined })),
@@ -419,7 +434,7 @@ export default function CustomerMenuPage() {
 
     const { data } = await supabase
       .from("orders")
-      .select("id, status, total, created_at, order_items(quantity, price_at_order, dishes(name))")
+      .select("id, status, total, created_at, paid, order_items(quantity, price_at_order, dishes(name))")
       .in("id", ids)
       .order("created_at", { ascending: false });
 
@@ -435,6 +450,8 @@ export default function CustomerMenuPage() {
       })),
     }));
     setHistoryOrders(mapped);
+    mapped.forEach((o) => { knownStatusRef.current[o.id] = o.status; });
+    (data ?? []).forEach((o: any) => { knownPaidRef.current[o.id] = !!o.paid; });
     setHistoryLoading(false);
   }
 
@@ -454,7 +471,7 @@ export default function CustomerMenuPage() {
       {statusToast && (
         <div className="status-toast" onClick={() => setStatusToast(null)}>
           <span className="dot" />
-          Order {STATUS_LABEL[statusToast.status] ?? statusToast.status}
+          {statusToast.text}
         </div>
       )}
 
