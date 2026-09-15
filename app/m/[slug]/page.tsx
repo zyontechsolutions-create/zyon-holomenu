@@ -111,6 +111,20 @@ function waiterKey(slug: string) {
 }
 const WAITER_COOLDOWN_SECONDS = 60;
 
+// A random, non-identifying token per device/browser — used only to know
+// which device started a shared table cart, so it (and only it) can
+// confirm the final order. Not tied to any real identity.
+function getDeviceToken(): string {
+  if (typeof window === "undefined") return "";
+  const key = "holomenu-device-token";
+  let token = localStorage.getItem(key);
+  if (!token) {
+    token = crypto.randomUUID();
+    localStorage.setItem(key, token);
+  }
+  return token;
+}
+
 export default function CustomerMenuPage() {
   const supabase = createClient();
   const { slug } = useParams<{ slug: string }>();
@@ -126,6 +140,9 @@ export default function CustomerMenuPage() {
   const [arDish, setArDish] = useState<Dish | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
+  const [sharedCart, setSharedCart] = useState<Record<string, number>>({});
+  const [hostToken, setHostToken] = useState<string | null>(null);
+  const deviceTokenRef = useRef<string>("");
   const [placingOrder, setPlacingOrder] = useState(false);
 
   const [showReview, setShowReview] = useState(false);
@@ -145,6 +162,49 @@ export default function CustomerMenuPage() {
     document.body.style.overflow = anyModalOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [showReview, arDish, showHistory, lastOrder]);
+
+  useEffect(() => {
+    deviceTokenRef.current = getDeviceToken();
+  }, []);
+
+  // Shared table cart — only active when this menu was opened via a
+  // table's QR code (tableId present). Every phone at the same table
+  // reads and writes the same rows, kept in sync live.
+  async function loadSharedCart() {
+    if (!tableId) return;
+    const { data } = await supabase
+      .from("table_cart_items").select("dish_id, quantity").eq("qr_code_id", tableId);
+    const next: Record<string, number> = {};
+    data?.forEach((row) => { next[row.dish_id] = row.quantity; });
+    setSharedCart(next);
+  }
+  async function loadHostToken() {
+    if (!tableId) return;
+    const { data } = await supabase
+      .from("table_sessions").select("host_token").eq("qr_code_id", tableId).maybeSingle();
+    setHostToken(data?.host_token ?? null);
+  }
+
+  useEffect(() => {
+    if (!tableId) return;
+    loadSharedCart();
+    loadHostToken();
+    const channel = supabase
+      .channel(`table-cart-${tableId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "table_cart_items", filter: `qr_code_id=eq.${tableId}` },
+        () => loadSharedCart()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "table_sessions", filter: `qr_code_id=eq.${tableId}` },
+        () => loadHostToken()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId]);
 
   function startWaiterCooldown(seconds: number) {
     setWaiterCooldown(seconds);
@@ -237,8 +297,31 @@ export default function CustomerMenuPage() {
     await supabase.from("menu_views").insert({ restaurant_id: restaurant.id, dish_id: dish.id, viewed_ar: viewedAr });
   }
   function openAr(dish: Dish) { setArDish(dish); logView(dish, true); }
-  function addToCart(id: string) { setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 })); }
+
+  async function adjustSharedCart(dishId: string, delta: number) {
+    if (!restaurant || !tableId) return;
+    // First device to add anything to an empty table becomes the host —
+    // the only one allowed to confirm the final order for this round.
+    if (delta > 0 && !hostToken) {
+      await supabase.from("table_sessions").upsert(
+        { restaurant_id: restaurant.id, qr_code_id: tableId, host_token: deviceTokenRef.current },
+        { onConflict: "qr_code_id", ignoreDuplicates: true }
+      );
+    }
+    await supabase.rpc("adjust_table_cart_item", {
+      p_restaurant_id: restaurant.id,
+      p_qr_code_id: tableId,
+      p_dish_id: dishId,
+      p_delta: delta,
+    });
+  }
+
+  function addToCart(id: string) {
+    if (tableId) { adjustSharedCart(id, 1); return; }
+    setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
+  }
   function removeFromCart(id: string) {
+    if (tableId) { adjustSharedCart(id, -1); return; }
     setCart((c) => {
       const n = { ...c };
       if (n[id] > 1) n[id] -= 1;
@@ -250,15 +333,29 @@ export default function CustomerMenuPage() {
     });
   }
 
+  // Whichever cart is actually "active" right now — the shared table
+  // cart if this menu was opened via QR, otherwise a private local one.
+  const activeCart = tableId ? sharedCart : cart;
+  const isHost = !tableId || (!!hostToken && hostToken === deviceTokenRef.current);
+
+  async function clearSharedCart() {
+    if (!tableId) return;
+    await supabase.from("table_cart_items").delete().eq("qr_code_id", tableId);
+    await supabase.from("table_sessions").delete().eq("qr_code_id", tableId);
+    setSharedCart({});
+    setHostToken(null);
+  }
+
   const cartItems = useMemo(
-    () => Object.entries(cart).map(([id, qty]) => ({ dish: dishes.find((d) => d.id === id)!, qty })).filter((i) => i.dish),
-    [cart, dishes]
+    () => Object.entries(activeCart).map(([id, qty]) => ({ dish: dishes.find((d) => d.id === id)!, qty })).filter((i) => i.dish),
+    [activeCart, dishes]
   );
   const cartTotal = cartItems.reduce((s, i) => s + i.dish.price * i.qty, 0);
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
 
   async function placeOrder() {
     if (!restaurant || cartItems.length === 0) return;
+    if (tableId && !isHost) return;
     setPlacingOrder(true);
     const { data: order, error } = await supabase
       .from("orders").insert({ restaurant_id: restaurant.id, qr_code_id: tableId, total: cartTotal, status: "new" })
@@ -281,7 +378,11 @@ export default function CustomerMenuPage() {
       total: cartTotal,
       status: "new",
     });
-    setCart({});
+    if (tableId) {
+      await clearSharedCart();
+    } else {
+      setCart({});
+    }
     setCartNotes({});
     setShowReview(false);
     setPlacingOrder(false);
@@ -482,7 +583,10 @@ export default function CustomerMenuPage() {
       {/* Cart bar */}
       {cartCount > 0 && !showReview && (
         <div className="cart-bar">
-          <span style={{ fontSize: 13 }}>{cartCount} item{cartCount > 1 ? "s" : ""} · ₹{cartTotal.toFixed(0)}</span>
+          <span style={{ fontSize: 13 }}>
+            {cartCount} item{cartCount > 1 ? "s" : ""} · ₹{cartTotal.toFixed(0)}
+            {tableId && <span style={{ display: "block", fontSize: 10.5, opacity: 0.75, marginTop: 2 }}>Shared table cart</span>}
+          </span>
           <button onClick={() => setShowReview(true)}>Review order</button>
         </div>
       )}
@@ -494,7 +598,9 @@ export default function CustomerMenuPage() {
             <button className="ar-close" onClick={() => setShowReview(false)}>×</button>
             <h3 style={{ textAlign: "center" }}>Review your order</h3>
             <p className="ar-note" style={{ textAlign: "center", marginBottom: 18 }}>
-              Check everything before it goes to the kitchen.
+              {tableId
+                ? "Everyone at this table shares this cart — add whatever you like."
+                : "Check everything before it goes to the kitchen."}
             </p>
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {cartItems.map((item) => (
@@ -534,13 +640,30 @@ export default function CustomerMenuPage() {
                 <span>₹{cartTotal.toFixed(0)}</span>
               </div>
             </div>
+            {tableId && !isHost ? (
+              <p className="ar-note" style={{ textAlign: "center", margin: "8px 0" }}>
+                Only the person who started this table's order can confirm it. Ask them to tap Confirm on their
+                phone, or clear the cart below to start a fresh order yourself.
+              </p>
+            ) : null}
             <button
               className="ar-launch"
               onClick={placeOrder}
-              disabled={placingOrder || cartItems.length === 0}
+              disabled={placingOrder || cartItems.length === 0 || (!!tableId && !isHost)}
             >
               {placingOrder ? "Placing..." : "Confirm order"}
             </button>
+            {tableId && cartItems.length > 0 && (
+              <button
+                className="ar-hint"
+                style={{ background: "none", border: "none", width: "100%", textAlign: "center", marginTop: 8, cursor: "pointer", fontSize: 11.5, opacity: 0.7 }}
+                onClick={() => {
+                  if (confirm("Clear this table's cart for everyone and start a fresh order?")) clearSharedCart();
+                }}
+              >
+                Clear cart & start over
+              </button>
+            )}
             <button
               className="ar-hint"
               style={{ background: "none", border: "none", width: "100%", textAlign: "center", marginTop: 10, cursor: "pointer" }}
@@ -551,6 +674,7 @@ export default function CustomerMenuPage() {
           </div>
         </div>
       )}
+
 
       {/* Order confirmation — now itemized */}
       {lastOrder && (
