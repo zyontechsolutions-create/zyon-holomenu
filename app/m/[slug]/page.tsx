@@ -25,6 +25,31 @@ function buildUpiLink(upiId: string, payeeName: string, amount: number, note: st
 }
 type OrderSummaryItem = { name: string; qty: number; price: number; note?: string };
 
+function StarRating({ value, onRate }: { value: number | null; onRate: (stars: number) => void }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          onClick={() => onRate(n)}
+          aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 26,
+            lineHeight: 1,
+            padding: 2,
+            color: value && n <= value ? "#B8873F" : "rgba(30,27,22,0.2)",
+          }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function VegDot({ isVeg }: { isVeg: boolean }) {
   const color = isVeg ? "#1c7a44" : "#b23b3b";
   return (
@@ -55,13 +80,14 @@ function VegDot({ isVeg }: { isVeg: boolean }) {
     </span>
   );
 }
-type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string };
+type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string; rating: number | null };
 type HistoryOrder = {
   id: string;
   status: string;
   total: number;
   created_at: string;
   items: OrderSummaryItem[];
+  rating: number | null;
 };
 
 const ScanIcon = () => (
@@ -406,6 +432,7 @@ export default function CustomerMenuPage() {
       items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price, note: cartNotes[i.dish.id]?.trim() || undefined })),
       total: cartTotal,
       status: "new",
+      rating: null,
     });
     if (tableId) {
       await clearSharedCart();
@@ -434,7 +461,7 @@ export default function CustomerMenuPage() {
 
     const { data } = await supabase
       .from("orders")
-      .select("id, status, total, created_at, paid, order_items(quantity, price_at_order, dishes(name))")
+      .select("id, status, total, created_at, paid, rating, order_items(quantity, price_at_order, dishes(name))")
       .in("id", ids)
       .order("created_at", { ascending: false });
 
@@ -443,6 +470,7 @@ export default function CustomerMenuPage() {
       status: o.status,
       total: o.total,
       created_at: o.created_at,
+      rating: o.rating ?? null,
       items: (o.order_items ?? []).map((it: any) => ({
         name: it.dishes?.name ?? "Unknown dish",
         qty: it.quantity,
@@ -453,6 +481,13 @@ export default function CustomerMenuPage() {
     mapped.forEach((o) => { knownStatusRef.current[o.id] = o.status; });
     (data ?? []).forEach((o: any) => { knownPaidRef.current[o.id] = !!o.paid; });
     setHistoryLoading(false);
+  }
+
+  async function submitRating(orderId: string, stars: number) {
+    // Update instantly, don't make the customer wait to see their tap register.
+    setLastOrder((prev) => (prev && prev.id === orderId ? { ...prev, rating: stars } : prev));
+    setHistoryOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, rating: stars } : o)));
+    await supabase.from("orders").update({ rating: stars, rated_at: new Date().toISOString() }).eq("id", orderId);
   }
 
   const grouped = categories.map((cat) => ({ ...cat, items: dishes.filter((d) => d.category_id === cat.id) }))
@@ -732,6 +767,14 @@ export default function CustomerMenuPage() {
                 <span>₹{lastOrder.total.toFixed(0)}</span>
               </div>
             </div>
+            {lastOrder.status === "served" && (
+              <div style={{ textAlign: "center", margin: "18px 0 4px" }}>
+                <p className="ar-note" style={{ marginBottom: 8 }}>
+                  {lastOrder.rating ? "Thanks for rating!" : "How was it?"}
+                </p>
+                <StarRating value={lastOrder.rating} onRate={(stars) => submitRating(lastOrder.id, stars)} />
+              </div>
+            )}
             {restaurant.upi_id && (
               <a
                 href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
@@ -785,6 +828,14 @@ export default function CustomerMenuPage() {
                       >
                         Pay ₹{o.total.toFixed(0)} via UPI
                       </a>
+                    )}
+                    {o.status === "served" && (
+                      <div style={{ textAlign: "center", marginTop: 12 }}>
+                        <p className="ar-note" style={{ fontSize: 11.5, marginBottom: 4 }}>
+                          {o.rating ? "Thanks for rating!" : "Rate this order"}
+                        </p>
+                        <StarRating value={o.rating} onRate={(stars) => submitRating(o.id, stars)} />
+                      </div>
                     )}
                   </div>
                 ))}
