@@ -116,6 +116,70 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+const STEP_ORDER = ["new", "preparing", "served"];
+
+function OrderStatusStepper({ status, compact = false }: { status: string; compact?: boolean }) {
+  if (status === "cancelled") {
+    return (
+      <div style={{ textAlign: compact ? "left" : "center", margin: compact ? "0 0 8px" : "10px 0 18px" }}>
+        <span className="status-pill status-cancelled" style={compact ? { fontSize: 10, padding: "5px 11px" } : undefined}>
+          {STATUS_LABEL.cancelled}
+        </span>
+      </div>
+    );
+  }
+
+  const currentIndex = Math.max(STEP_ORDER.indexOf(status), 0);
+  const circleSize = compact ? 13 : 20;
+
+  return (
+    <div style={{ display: "flex", margin: compact ? "4px 0 10px" : "14px 0 22px" }}>
+      {STEP_ORDER.map((key, i) => {
+        const done = i <= currentIndex;
+        return (
+          <div key={key} style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
+            {i > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: circleSize / 2 - 1,
+                  left: "-50%",
+                  width: "100%",
+                  height: 2,
+                  background: done ? "#1E1B16" : "rgba(30,27,22,0.15)",
+                  zIndex: 0,
+                }}
+              />
+            )}
+            <div
+              style={{
+                width: circleSize,
+                height: circleSize,
+                borderRadius: "50%",
+                background: done ? "#1E1B16" : "#F5F0E4",
+                border: `2px solid ${done ? "#1E1B16" : "rgba(30,27,22,0.25)"}`,
+                zIndex: 1,
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: compact ? 9 : 11,
+                marginTop: compact ? 4 : 6,
+                color: done ? "#1E1B16" : "#6b6455",
+                fontWeight: i === currentIndex ? 600 : 400,
+                textAlign: "center",
+              }}
+            >
+              {STATUS_LABEL[key]}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function historyKey(slug: string) {
   return `holomenu-orders-${slug}`;
 }
@@ -747,11 +811,7 @@ export default function CustomerMenuPage() {
         <div className="ar-modal">
           <div className="ar-sheet" style={{ paddingTop: 28 }}>
             <h3 style={{ textAlign: "center" }}>Order placed</h3>
-            <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 18px" }}>
-              <span className={`status-pill status-${lastOrder.status === "new" ? "new" : lastOrder.status === "served" ? "served" : lastOrder.status === "cancelled" ? "cancelled" : "preparing"}`}>
-                {STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
-              </span>
-            </div>
+            <OrderStatusStepper status={lastOrder.status} />
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {lastOrder.items.map((item, idx) => (
                 <div key={idx}>
@@ -776,7 +836,7 @@ export default function CustomerMenuPage() {
               </div>
             )}
             {restaurant.upi_id && (
-              <a
+              
                 href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
                 className="ar-launch"
                 style={{ display: "block", textAlign: "center", textDecoration: "none", marginBottom: 10 }}
@@ -804,12 +864,9 @@ export default function CustomerMenuPage() {
                 {historyOrders.map((o) => (
                   <div key={o.id} className="history-order">
                     <div className="history-order-head">
-                      <span className={`status-pill status-${o.status === "new" ? "new" : o.status === "served" ? "served" : o.status === "cancelled" ? "cancelled" : "preparing"}`}
-                        style={{ fontSize: 10, padding: "5px 11px" }}>
-                        {STATUS_LABEL[o.status] ?? o.status}
-                      </span>
-                      <span className="when">{new Date(o.created_at).toLocaleString()}</span>
+                      <span className="when" style={{ marginLeft: "auto" }}>{new Date(o.created_at).toLocaleString()}</span>
                     </div>
+                    <OrderStatusStepper status={o.status} compact />
                     {o.items.map((item, idx) => (
                       <div key={idx} className="history-item-row">
                         <span>{item.qty}× {item.name}</span>
@@ -821,7 +878,7 @@ export default function CustomerMenuPage() {
                       <span>₹{o.total}</span>
                     </div>
                     {restaurant.upi_id && o.status !== "cancelled" && (
-                      <a
+                      
                         href={buildUpiLink(restaurant.upi_id, restaurant.name, o.total, `Order ${o.id.slice(0, 8)}`)}
                         className="ar-launch"
                         style={{ textDecoration: "none", marginTop: 10 }}
