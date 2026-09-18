@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
-          from: "Zyon HoloMenu <onboarding@resend.dev>",
+          from: "Zyon HoloMenu Support <support@zyontechsolutions.com>",
           to: SUPPORT_INBOX,
           replyTo: email.trim(),
           subject: `New support ticket from ${name.trim()}`,
