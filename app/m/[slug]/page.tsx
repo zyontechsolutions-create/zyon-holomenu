@@ -25,6 +25,81 @@ function buildUpiLink(upiId: string, payeeName: string, amount: number, note: st
 }
 type OrderSummaryItem = { name: string; qty: number; price: number; note?: string };
 
+const ORDER_STEPS: { key: string; label: string }[] = [
+  { key: "new", label: "Received" },
+  { key: "preparing", label: "Preparing" },
+  { key: "served", label: "Served" },
+];
+
+function OrderStepper({ status, compact }: { status: string; compact?: boolean }) {
+  if (status === "cancelled") {
+    return (
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <span className="status-pill status-cancelled">Cancelled</span>
+      </div>
+    );
+  }
+  const currentIndex = Math.max(0, ORDER_STEPS.findIndex((s) => s.key === status));
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+      {ORDER_STEPS.map((step, i) => {
+        const done = i <= currentIndex;
+        const isLast = i === ORDER_STEPS.length - 1;
+        return (
+          <div key={step.key} style={{ display: "flex", alignItems: "center", flex: isLast ? "0 0 auto" : "1 1 0" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: compact ? 20 : 62 }}>
+              <div
+                style={{
+                  width: compact ? 14 : 22,
+                  height: compact ? 14 : 22,
+                  borderRadius: "50%",
+                  background: done ? "#B8873F" : "rgba(30,27,22,0.14)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: compact ? 8 : 11,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  transition: "background 0.3s ease",
+                }}
+              >
+                {done ? "✓" : ""}
+              </div>
+              {!compact && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    marginTop: 5,
+                    color: done ? "#1E1B16" : "#a19a8c",
+                    fontWeight: done ? 600 : 400,
+                    textAlign: "center",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {step.label}
+                </span>
+              )}
+            </div>
+            {!isLast && (
+              <div
+                style={{
+                  flex: 1,
+                  height: 2,
+                  minWidth: compact ? 10 : 16,
+                  background: i < currentIndex ? "#B8873F" : "rgba(30,27,22,0.14)",
+                  marginTop: compact ? 6 : 10,
+                  transition: "background 0.3s ease",
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function StarRating({ value, onRate }: { value: number | null; onRate: (stars: number) => void }) {
   return (
     <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
@@ -747,10 +822,8 @@ export default function CustomerMenuPage() {
         <div className="ar-modal">
           <div className="ar-sheet" style={{ paddingTop: 28 }}>
             <h3 style={{ textAlign: "center" }}>Order placed</h3>
-            <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 18px" }}>
-              <span className={`status-pill status-${lastOrder.status === "new" ? "new" : lastOrder.status === "served" ? "served" : lastOrder.status === "cancelled" ? "cancelled" : "preparing"}`}>
-                {STATUS_LABEL[lastOrder.status] ?? lastOrder.status}
-              </span>
+            <div style={{ margin: "14px 0 20px" }}>
+              <OrderStepper status={lastOrder.status} />
             </div>
             <div className="history-list" style={{ maxHeight: "40vh" }}>
               {lastOrder.items.map((item, idx) => (
@@ -804,10 +877,7 @@ export default function CustomerMenuPage() {
                 {historyOrders.map((o) => (
                   <div key={o.id} className="history-order">
                     <div className="history-order-head">
-                      <span className={`status-pill status-${o.status === "new" ? "new" : o.status === "served" ? "served" : o.status === "cancelled" ? "cancelled" : "preparing"}`}
-                        style={{ fontSize: 10, padding: "5px 11px" }}>
-                        {STATUS_LABEL[o.status] ?? o.status}
-                      </span>
+                      <OrderStepper status={o.status} compact />
                       <span className="when">{new Date(o.created_at).toLocaleString()}</span>
                     </div>
                     {o.items.map((item, idx) => (
