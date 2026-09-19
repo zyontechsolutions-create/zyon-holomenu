@@ -242,12 +242,14 @@ export default function CustomerMenuPage() {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartNotes, setCartNotes] = useState<Record<string, string>>({});
   const [sharedCart, setSharedCart] = useState<Record<string, number>>({});
+  const [sharedCartRaw, setSharedCartRaw] = useState<{ dish_id: string; quantity: number; device_token: string }[]>([]);
   const [hostToken, setHostToken] = useState<string | null>(null);
   const deviceTokenRef = useRef<string>("");
   const [placingOrder, setPlacingOrder] = useState(false);
 
   const [showReview, setShowReview] = useState(false);
   const [lastOrder, setLastOrder] = useState<PlacedOrder | null>(null);
+  const [splitSummary, setSplitSummary] = useState<Record<string, { label: string; subtotal: number; isMe: boolean }[]>>({});
   const [showHistory, setShowHistory] = useState(false);
   const [historyOrders, setHistoryOrders] = useState<HistoryOrder[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -276,10 +278,11 @@ export default function CustomerMenuPage() {
   async function loadSharedCart() {
     if (!tableId) return;
     const { data } = await supabase
-      .from("table_cart_items").select("dish_id, quantity").eq("qr_code_id", tableId);
+      .from("table_cart_items").select("dish_id, quantity, device_token").eq("qr_code_id", tableId);
     const next: Record<string, number> = {};
-    data?.forEach((row) => { next[row.dish_id] = row.quantity; });
+    data?.forEach((row) => { next[row.dish_id] = (next[row.dish_id] ?? 0) + row.quantity; });
     setSharedCart(next);
+    setSharedCartRaw(data ?? []);
   }
   async function loadHostToken() {
     if (!tableId) return;
@@ -441,6 +444,7 @@ export default function CustomerMenuPage() {
       p_qr_code_id: tableId,
       p_dish_id: dishId,
       p_delta: delta,
+      p_device_token: deviceTokenRef.current,
     });
   }
 
@@ -481,6 +485,29 @@ export default function CustomerMenuPage() {
   const cartTotal = cartItems.reduce((s, i) => s + i.dish.price * i.qty, 0);
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
 
+  async function loadSplit(orderId: string) {
+    const { data } = await supabase
+      .from("order_items")
+      .select("dish_id, quantity, price_at_order, device_token")
+      .eq("order_id", orderId)
+      .not("device_token", "is", null);
+    if (!data || data.length === 0) return;
+
+    const totals: Record<string, number> = {};
+    data.forEach((row: any) => {
+      totals[row.device_token] = (totals[row.device_token] ?? 0) + row.quantity * Number(row.price_at_order);
+    });
+    // Stable ordering across every phone at the table, since it's based
+    // purely on the token values themselves, not on who loaded this first.
+    const tokens = Object.keys(totals).sort();
+    const rows = tokens.map((token, i) => ({
+      label: `Person ${i + 1}`,
+      subtotal: totals[token],
+      isMe: token === deviceTokenRef.current,
+    }));
+    setSplitSummary((s) => ({ ...s, [orderId]: rows }));
+  }
+
   async function placeOrder() {
     if (!restaurant || cartItems.length === 0) return;
     if (tableId && !isHost) return;
@@ -489,15 +516,28 @@ export default function CustomerMenuPage() {
       .from("orders").insert({ restaurant_id: restaurant.id, qr_code_id: tableId, total: cartTotal, status: "new" })
       .select("id").single();
     if (error || !order) { setPlacingOrder(false); return; }
-    await supabase.from("order_items").insert(
-      cartItems.map((i) => ({
-        order_id: order.id,
-        dish_id: i.dish.id,
-        quantity: i.qty,
-        price_at_order: i.dish.price,
-        note: cartNotes[i.dish.id]?.trim() || null,
-      }))
-    );
+
+    // In shared-table mode, keep each device's items as separate rows
+    // (rather than one aggregated row per dish) so we can work out who
+    // owes what afterward. A normal private order stays exactly as before.
+    const orderItemRows = tableId
+      ? sharedCartRaw.map((row) => ({
+          order_id: order.id,
+          dish_id: row.dish_id,
+          quantity: row.quantity,
+          price_at_order: dishes.find((d) => d.id === row.dish_id)?.price ?? 0,
+          note: row.device_token === deviceTokenRef.current ? (cartNotes[row.dish_id]?.trim() || null) : null,
+          device_token: row.device_token,
+        }))
+      : cartItems.map((i) => ({
+          order_id: order.id,
+          dish_id: i.dish.id,
+          quantity: i.qty,
+          price_at_order: i.dish.price,
+          note: cartNotes[i.dish.id]?.trim() || null,
+          device_token: null,
+        }));
+    await supabase.from("order_items").insert(orderItemRows);
 
     addStoredOrderId(slug, order.id);
     knownStatusRef.current[order.id] = "new";
@@ -510,6 +550,7 @@ export default function CustomerMenuPage() {
       rating: null,
     });
     if (tableId) {
+      await loadSplit(order.id);
       await clearSharedCart();
     } else {
       setCart({});
@@ -840,6 +881,21 @@ export default function CustomerMenuPage() {
                 <span>₹{lastOrder.total.toFixed(0)}</span>
               </div>
             </div>
+            {splitSummary[lastOrder.id] && splitSummary[lastOrder.id].length > 1 && (
+              <div style={{ margin: "14px 0 4px", padding: "12px 14px", background: "rgba(184,135,63,0.07)", borderRadius: 10 }}>
+                <p className="ar-note" style={{ fontWeight: 600, marginBottom: 8, color: "#1E1B16" }}>Split the bill</p>
+                {splitSummary[lastOrder.id].map((row) => (
+                  <div key={row.label} className="history-item-row" style={{ fontSize: 13 }}>
+                    <span>{row.label}{row.isMe ? " (You)" : ""}</span>
+                    <span>₹{row.subtotal.toFixed(0)}</span>
+                  </div>
+                ))}
+                <p className="ar-note" style={{ fontSize: 11, marginTop: 8 }}>
+                  Everyone pays the host directly (cash or UPI) — the restaurant only sees one payment for the
+                  whole table.
+                </p>
+              </div>
+            )}
             {lastOrder.status === "served" && (
               <div style={{ textAlign: "center", margin: "18px 0 4px" }}>
                 <p className="ar-note" style={{ marginBottom: 8 }}>
