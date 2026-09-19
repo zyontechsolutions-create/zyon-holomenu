@@ -535,7 +535,7 @@ export default function CustomerMenuPage() {
           quantity: i.qty,
           price_at_order: i.dish.price,
           note: cartNotes[i.dish.id]?.trim() || null,
-          device_token: null,
+          device_token: null as string | null,
         }));
     await supabase.from("order_items").insert(orderItemRows);
 
