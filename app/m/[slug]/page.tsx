@@ -155,7 +155,7 @@ function VegDot({ isVeg }: { isVeg: boolean }) {
     </span>
   );
 }
-type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string; rating: number | null };
+type PlacedOrder = { id: string; items: OrderSummaryItem[]; total: number; status: string; rating: number | null; paid: boolean };
 type HistoryOrder = {
   id: string;
   status: string;
@@ -163,6 +163,7 @@ type HistoryOrder = {
   created_at: string;
   items: OrderSummaryItem[];
   rating: number | null;
+  paid: boolean;
 };
 
 const ScanIcon = () => (
@@ -377,9 +378,9 @@ export default function CustomerMenuPage() {
           const updated = payload.new as { id: string; status: string; paid: boolean };
           if (!getStoredOrderIds(slug).includes(updated.id)) return;
 
-          setLastOrder((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status } : prev));
+          setLastOrder((prev) => (prev && prev.id === updated.id ? { ...prev, status: updated.status, paid: updated.paid } : prev));
           setHistoryOrders((prev) =>
-            prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status } : o))
+            prev.map((o) => (o.id === updated.id ? { ...o, status: updated.status, paid: updated.paid } : o))
           );
 
           const previousStatus = knownStatusRef.current[updated.id];
@@ -535,7 +536,7 @@ export default function CustomerMenuPage() {
           quantity: i.qty,
           price_at_order: i.dish.price,
           note: cartNotes[i.dish.id]?.trim() || null,
-          device_token: null as string | null,
+          device_token: null,
         }));
     await supabase.from("order_items").insert(orderItemRows);
 
@@ -548,6 +549,7 @@ export default function CustomerMenuPage() {
       total: cartTotal,
       status: "new",
       rating: null,
+      paid: false,
     });
     if (tableId) {
       await loadSplit(order.id);
@@ -587,6 +589,7 @@ export default function CustomerMenuPage() {
       total: o.total,
       created_at: o.created_at,
       rating: o.rating ?? null,
+      paid: !!o.paid,
       items: (o.order_items ?? []).map((it: any) => ({
         name: it.dishes?.name ?? "Unknown dish",
         qty: it.quantity,
@@ -904,7 +907,7 @@ export default function CustomerMenuPage() {
                 <StarRating value={lastOrder.rating} onRate={(stars) => submitRating(lastOrder.id, stars)} />
               </div>
             )}
-            {restaurant.upi_id && (
+            {restaurant.upi_id && !lastOrder.paid && (
               <a
                 href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
                 className="ar-launch"
@@ -912,6 +915,11 @@ export default function CustomerMenuPage() {
               >
                 Pay ₹{lastOrder.total.toFixed(0)} via UPI
               </a>
+            )}
+            {restaurant.upi_id && lastOrder.paid && (
+              <p className="ar-note" style={{ textAlign: "center", color: "#1c7a44", fontWeight: 600, marginBottom: 10 }}>
+                ✓ Payment received
+              </p>
             )}
             <button className="ar-launch" onClick={() => setLastOrder(null)}>Back to menu</button>
           </div>
@@ -946,7 +954,7 @@ export default function CustomerMenuPage() {
                       <span>Total</span>
                       <span>₹{o.total}</span>
                     </div>
-                    {restaurant.upi_id && o.status !== "cancelled" && (
+                    {restaurant.upi_id && o.status !== "cancelled" && !o.paid && (
                       <a
                         href={buildUpiLink(restaurant.upi_id, restaurant.name, o.total, `Order ${o.id.slice(0, 8)}`)}
                         className="ar-launch"
@@ -954,6 +962,11 @@ export default function CustomerMenuPage() {
                       >
                         Pay ₹{o.total.toFixed(0)} via UPI
                       </a>
+                    )}
+                    {restaurant.upi_id && o.paid && (
+                      <p className="ar-note" style={{ textAlign: "center", color: "#1c7a44", fontWeight: 600, marginTop: 10 }}>
+                        ✓ Payment received
+                      </p>
                     )}
                     {o.status === "served" && (
                       <div style={{ textAlign: "center", marginTop: 12 }}>
