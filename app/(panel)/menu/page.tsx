@@ -447,4 +447,51 @@ function MenuPage() {
                       <label className="flex-1 flex items-center justify-center gap-2 border border-ink/15 rounded-md px-3 py-2.5 text-sm cursor-pointer hover:bg-creamDeep transition-colors">
                         {uploadingModel ? (
                           <>
-                            <Loader2 size={15} className="animate-spin" /> Up
+                            <Loader2 size={15} className="animate-spin" /> Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={15} /> {form.ar_model_url ? "Replace 3D model" : "Upload 3D model (.glb)"}
+                          </>
+                        )}
+                        <input type="file" accept=".glb" onChange={handleModelUpload} disabled={uploadingModel} className="hidden" />
+                      </label>
+                    </div>
+                    {modelError && <p className="text-xs text-red-600">{modelError}</p>}
+                    <input
+                      placeholder="Or paste a .glb model URL instead"
+                      value={form.ar_model_url}
+                      onChange={(e) => setForm({ ...form, ar_model_url: e.target.value })}
+                      className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
+                    />
+                    <p className="text-xs text-inkSoft">
+                      The "View on Table" button only appears on the customer menu once a dish has both AR enabled and a model attached.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={uploading} className="btn-gold flex-1 py-2.5">Save</button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 py-2.5 text-sm text-inkSoft border border-ink/15 rounded-full hover:bg-creamDeep transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </>
+  );
+}
+
+export default function MenuPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
+      <MenuPage />
+    </Suspense>
+  );
+}
