@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
-import { Plus, Trash2, Pencil, UtensilsCrossed, Upload, Loader2, X } from "lucide-react";
+import { Plus, Trash2, Pencil, UtensilsCrossed, Upload, Loader2, X, Box } from "lucide-react";
 
 type Dish = {
   id: string;
@@ -13,6 +13,8 @@ type Dish = {
   is_available: boolean;
   category_id: string | null;
   is_veg: boolean;
+  ar_enabled: boolean;
+  ar_model_url: string | null;
 };
 type Category = { id: string; name: string; sort_order: number };
 
@@ -23,16 +25,18 @@ function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true });
+  const [form, setForm] = useState({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true, ar_enabled: false, ar_model_url: "" });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [uploadingModel, setUploadingModel] = useState(false);
+  const [modelError, setModelError] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
 
   async function loadDishes(rid: string) {
     const { data } = await supabase
       .from("dishes")
-      .select("id, name, description, price, photo_url, is_available, category_id, is_veg")
+      .select("id, name, description, price, photo_url, is_available, category_id, is_veg, ar_enabled, ar_model_url")
       .eq("restaurant_id", rid)
       .order("sort_order");
     setDishes(data ?? []);
@@ -79,8 +83,9 @@ function MenuPage() {
 
   function openNew() {
     setEditing(null);
-    setForm({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true });
+    setForm({ name: "", description: "", price: "", photo_url: "", category_id: "", is_veg: true, ar_enabled: false, ar_model_url: "" });
     setUploadError("");
+    setModelError("");
     setShowForm(true);
   }
 
@@ -93,8 +98,11 @@ function MenuPage() {
       photo_url: dish.photo_url ?? "",
       category_id: dish.category_id ?? "",
       is_veg: dish.is_veg,
+      ar_enabled: dish.ar_enabled,
+      ar_model_url: dish.ar_model_url ?? "",
     });
     setUploadError("");
+    setModelError("");
     setShowForm(true);
   }
 
@@ -133,6 +141,41 @@ function MenuPage() {
     setUploading(false);
   }
 
+  async function handleModelUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !restaurant) return;
+
+    if (!file.name.toLowerCase().endsWith(".glb")) {
+      setModelError("Please choose a .glb 3D model file.");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setModelError("Model is too large — please use one under 20MB.");
+      return;
+    }
+
+    setUploadingModel(true);
+    setModelError("");
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "-");
+    const path = `${restaurant.id}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage.from("dish-models").upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+    if (error) {
+      setModelError("Upload failed — please try again.");
+      setUploadingModel(false);
+      return;
+    }
+
+    const { data: pub } = supabase.storage.from("dish-models").getPublicUrl(path);
+    setForm((f) => ({ ...f, ar_model_url: pub.publicUrl }));
+    setUploadingModel(false);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!restaurant) return;
@@ -144,6 +187,8 @@ function MenuPage() {
       photo_url: form.photo_url,
       category_id: form.category_id || null,
       is_veg: form.is_veg,
+      ar_enabled: form.ar_enabled,
+      ar_model_url: form.ar_model_url || null,
     };
     if (editing) {
       await supabase.from("dishes").update(payload).eq("id", editing.id);
@@ -255,6 +300,11 @@ function MenuPage() {
                     >
                       {dish.is_available ? "Available" : "Hidden"}
                     </button>
+                    {dish.ar_enabled && dish.ar_model_url && (
+                      <span className="status-pill" style={{ background: "rgba(184,135,63,0.15)", color: "#8C6428" }}>
+                        <Box size={11} style={{ display: "inline", verticalAlign: -1, marginRight: 3 }} /> AR
+                      </span>
+                    )}
                     <button onClick={() => openEdit(dish)} className="p-2 text-inkSoft hover:text-ink transition-colors">
                       <Pencil size={15} />
                     </button>
@@ -363,27 +413,38 @@ function MenuPage() {
                 onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
                 className="w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold transition-colors"
               />
-              <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={uploading} className="btn-gold flex-1 py-2.5">Save</button>
+
+              <div className="border-t border-ink/10 pt-3 mt-1">
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  className="flex-1 py-2.5 text-sm text-inkSoft border border-ink/15 rounded-full hover:bg-creamDeep transition-colors"
+                  onClick={() => setForm({ ...form, ar_enabled: !form.ar_enabled })}
+                  className={`w-full flex items-center justify-between rounded-md px-3 py-2.5 text-sm border transition-colors ${form.ar_enabled ? "border-goldDeep bg-creamDeep" : "border-ink/15 bg-cream text-inkSoft"}`}
                 >
-                  Cancel
+                  <span className="flex items-center gap-2">
+                    <Box size={15} /> Enable AR — "View on Table"
+                  </span>
+                  <span
+                    style={{
+                      width: 34, height: 19, borderRadius: 999, background: form.ar_enabled ? "#B8873F" : "rgba(30,27,22,0.15)",
+                      position: "relative", transition: "background 0.2s ease", flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute", top: 2, left: form.ar_enabled ? 17 : 2, width: 15, height: 15, borderRadius: "50%",
+                        background: "#fff", transition: "left 0.2s ease",
+                      }}
+                    />
+                  </span>
                 </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </>
-  );
-}
 
-export default function MenuPageWrapper() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">Loading...</div>}>
-      <MenuPage />
-    </Suspense>
-  );
-}
+                {form.ar_enabled && (
+                  <div className="mt-3 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-md bg-creamDeep flex items-center justify-center text-goldDeep shrink-0 border border-ink/10">
+                        <Box size={20} strokeWidth={1.5} />
+                      </div>
+                      <label className="flex-1 flex items-center justify-center gap-2 border border-ink/15 rounded-md px-3 py-2.5 text-sm cursor-pointer hover:bg-creamDeep transition-colors">
+                        {uploadingModel ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" /> Up
