@@ -87,11 +87,11 @@ function OrdersPage() {
             const isOpen = !!expanded[order.id];
             return (
               <div key={order.id} className="list-row fade-up" style={{ animationDelay: `${Math.min(i * 0.04, 0.3)}s`, flexDirection: "column", alignItems: "stretch" }}>
-                <div className="flex items-center gap-4 w-full">
-                  <div className="w-10 h-10 rounded-md bg-creamDeep flex items-center justify-center text-goldDeep shrink-0">
+                <div className="order-row flex items-center gap-4 w-full">
+                  <div className="order-icon w-10 h-10 rounded-md bg-creamDeep flex items-center justify-center text-goldDeep shrink-0">
                     <ClipboardList size={16} strokeWidth={1.6} />
                   </div>
-                  <button onClick={() => toggle(order.id)} className="flex-1 text-left">
+                  <button onClick={() => toggle(order.id)} className="order-info flex-1 text-left min-w-0">
                     <p className="text-sm font-medium">
                       {order.qr_codes?.label ?? "Table"} <span className="text-goldDeep">· ₹{order.total}</span>
                       <span className="text-inkSoft font-normal"> · {order.order_items?.length ?? 0} item{(order.order_items?.length ?? 0) !== 1 ? "s" : ""}</span>
@@ -100,6 +100,7 @@ function OrdersPage() {
                       {new Date(order.created_at).toLocaleString()}
                     </p>
                   </button>
+                  <div className="order-controls flex items-center gap-4">
                   <button
                     onClick={() => togglePaid(order.id, order.paid)}
                     className="status-pill"
@@ -121,7 +122,8 @@ function OrdersPage() {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                  <button onClick={() => toggle(order.id)} className="p-1.5 text-inkSoft">
+                  </div>
+                  <button onClick={() => toggle(order.id)} className="order-chev p-1.5 text-inkSoft">
                     {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                   </button>
                 </div>
