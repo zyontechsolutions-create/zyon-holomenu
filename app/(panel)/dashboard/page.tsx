@@ -199,11 +199,11 @@ function DashboardPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-3 my-3.5">
+              <div className="period-nav flex items-center justify-center gap-3 my-3.5">
                 <button onClick={() => setAnchor(shiftAnchor(periodType, anchor, -1))} className="p-1.5 text-inkSoft hover:text-ink transition-colors" aria-label="Previous period">
                   <ChevronLeft size={18} />
                 </button>
-                <span className="text-sm font-medium" style={{ minWidth: 190, textAlign: "center" }}>{formatLabel(periodType, anchor)}</span>
+                <span className="period-label text-sm font-medium">{formatLabel(periodType, anchor)}</span>
                 <button
                   onClick={() => canGoNext && setAnchor(shiftAnchor(periodType, anchor, 1))}
                   disabled={!canGoNext}
@@ -218,8 +218,7 @@ function DashboardPage() {
                   value={toDateInputValue(anchor)}
                   max={toDateInputValue(new Date())}
                   onChange={(e) => e.target.value && setAnchor(fromDateInputValue(e.target.value))}
-                  className="border border-ink/15 rounded-md px-2 py-1 text-xs bg-cream focus:outline-none focus:border-gold"
-                  style={{ marginLeft: 6 }}
+                  className="period-date border border-ink/15 rounded-md px-2 py-1 text-xs bg-cream focus:outline-none focus:border-gold"
                   aria-label={`Jump to a specific ${periodType}`}
                 />
               </div>
