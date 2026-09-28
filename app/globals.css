@@ -183,6 +183,10 @@ body {
 @media (prefers-reduced-motion: reduce){
   .stat-card-v2, .list-row, .qr-tile, .fade-up{animation:none !important;transition:none !important;transform:none !important;opacity:1 !important;}
 }
+.period-label{min-width:190px;text-align:center;}
+.period-date{margin-left:6px;}
+.order-controls{flex:none;}
+
 /* Tablet: collapsed icon rail */
 @media (max-width:900px){
   .panel-sidebar{width:76px;}
@@ -224,4 +228,22 @@ body {
   .stat-card-v2 .num{font-size:23px;}
   .section-card{padding:18px;}
   .list-row{flex-wrap:wrap;gap:10px 12px;}
+  /* keep anything wide from pushing the page sideways */
+  .panel-shell{overflow-x:clip;max-width:100vw;}
+  .panel-sidebar{max-width:100vw;}
+
+  /* Dashboard: period switcher wraps instead of overflowing */
+  .period-nav{flex-wrap:wrap;gap:6px 8px;}
+  .period-label{min-width:0;flex:1;}
+  .period-date{margin-left:0;flex:1 1 100%;width:100%;min-width:0;}
+
+  /* Orders: 2-row card (icon + info + chevron, then Paid / status) */
+  .order-row{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;
+    grid-template-areas:"icon info chev" "controls controls controls";gap:10px 12px;align-items:center;}
+  .order-icon{grid-area:icon;}
+  .order-info{grid-area:info;}
+  .order-chev{grid-area:chev;}
+  .order-controls{grid-area:controls;display:flex;gap:8px;width:100%;}
+  .order-controls .status-pill{min-width:0;}
+  .order-controls select.status-pill{flex:1;}
 }
