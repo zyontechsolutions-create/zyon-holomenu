@@ -88,7 +88,7 @@ function QrCodesPage() {
           </button>
         </form>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {codes.map((code, i) => (
             <div key={code.id} className="qr-tile fade-up" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
               <QRCodeCanvas id={`qr-${code.id}`} value={menuUrl(code.id)} size={140} includeMargin />
