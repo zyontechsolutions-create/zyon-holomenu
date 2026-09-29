@@ -116,8 +116,10 @@ function DashboardPage() {
         supabase.from("menu_views").select("created_at").eq("restaurant_id", restaurant.id).is("dish_id", null),
       ]);
 
-      const orderCount = orders?.length ?? 0;
-      const revenue = orders?.reduce((sum, o) => sum + Number(o.total), 0) ?? 0;
+      // Cancelled orders never count toward orders, revenue, AOV or conversion.
+      const validOrders = (orders ?? []).filter((o) => o.status !== "cancelled");
+      const orderCount = validOrders.length;
+      const revenue = validOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const aov = orderCount ? revenue / orderCount : 0;
       const viewCount = visits?.length ?? 0;
       const conversion = viewCount ? Math.round((orderCount / viewCount) * 100) : 0;
@@ -152,12 +154,16 @@ function DashboardPage() {
   const periodViews = useMemo(() => pageVisits.filter((v) => inRange(v.created_at, start, end)).length, [pageVisits, start, end]);
   const prevPeriodViews = useMemo(() => pageVisits.filter((v) => inRange(v.created_at, prevStart, prevEnd)).length, [pageVisits, prevStart, prevEnd]);
 
-  const periodRevenue = periodOrders.reduce((sum, o) => sum + Number(o.total), 0);
-  const prevPeriodRevenue = prevPeriodOrders.reduce((sum, o) => sum + Number(o.total), 0);
-  const periodAov = periodOrders.length ? periodRevenue / periodOrders.length : 0;
-  const prevPeriodAov = prevPeriodOrders.length ? prevPeriodRevenue / prevPeriodOrders.length : 0;
-  const periodConversion = periodViews ? Math.round((periodOrders.length / periodViews) * 100) : 0;
-  const prevPeriodConversion = prevPeriodViews ? Math.round((prevPeriodOrders.length / prevPeriodViews) * 100) : 0;
+  // Stats ignore cancelled orders; the list below still shows them.
+  const periodValid = periodOrders.filter((o) => o.status !== "cancelled");
+  const prevPeriodValid = prevPeriodOrders.filter((o) => o.status !== "cancelled");
+
+  const periodRevenue = periodValid.reduce((sum, o) => sum + Number(o.total), 0);
+  const prevPeriodRevenue = prevPeriodValid.reduce((sum, o) => sum + Number(o.total), 0);
+  const periodAov = periodValid.length ? periodRevenue / periodValid.length : 0;
+  const prevPeriodAov = prevPeriodValid.length ? prevPeriodRevenue / prevPeriodValid.length : 0;
+  const periodConversion = periodViews ? Math.round((periodValid.length / periodViews) * 100) : 0;
+  const prevPeriodConversion = prevPeriodViews ? Math.round((prevPeriodValid.length / prevPeriodViews) * 100) : 0;
 
   const canGoNext = end.getTime() <= Date.now();
 
@@ -199,11 +205,11 @@ function DashboardPage() {
                 </div>
               </div>
 
-              <div className="period-nav flex items-center justify-center gap-3 my-3.5">
+              <div className="flex items-center justify-center gap-3 my-3.5">
                 <button onClick={() => setAnchor(shiftAnchor(periodType, anchor, -1))} className="p-1.5 text-inkSoft hover:text-ink transition-colors" aria-label="Previous period">
                   <ChevronLeft size={18} />
                 </button>
-                <span className="period-label text-sm font-medium">{formatLabel(periodType, anchor)}</span>
+                <span className="text-sm font-medium" style={{ minWidth: 190, textAlign: "center" }}>{formatLabel(periodType, anchor)}</span>
                 <button
                   onClick={() => canGoNext && setAnchor(shiftAnchor(periodType, anchor, 1))}
                   disabled={!canGoNext}
@@ -218,16 +224,17 @@ function DashboardPage() {
                   value={toDateInputValue(anchor)}
                   max={toDateInputValue(new Date())}
                   onChange={(e) => e.target.value && setAnchor(fromDateInputValue(e.target.value))}
-                  className="period-date border border-ink/15 rounded-md px-2 py-1 text-xs bg-cream focus:outline-none focus:border-gold"
+                  className="border border-ink/15 rounded-md px-2 py-1 text-xs bg-cream focus:outline-none focus:border-gold"
+                  style={{ marginLeft: 6 }}
                   aria-label={`Jump to a specific ${periodType}`}
                 />
               </div>
 
               <div className="stat-grid">
                 <div className="stat-card-v2 fade-up">
-                  <div className="num">{periodOrders.length}</div>
+                  <div className="num">{periodValid.length}</div>
                   <div className="lbl">Orders</div>
-                  <DeltaBadge curr={periodOrders.length} prev={prevPeriodOrders.length} />
+                  <DeltaBadge curr={periodValid.length} prev={prevPeriodValid.length} />
                 </div>
                 <div className="stat-card-v2 fade-up">
                   <div className="num">₹{periodRevenue.toFixed(0)}</div>
