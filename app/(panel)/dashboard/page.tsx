@@ -6,7 +6,7 @@ import StatCard from "@/components/StatCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type TopDish = { name: string; views: number };
-type OrderRow = { id: string; total: number; created_at: string; status: string };
+type OrderRow = { id: string; total: number; created_at: string; status: string; paid: boolean };
 type PeriodType = "day" | "week" | "month";
 
 const STATUS_LABEL: Record<string, string> = { new: "Received", preparing: "Preparing", served: "Served", cancelled: "Cancelled" };
@@ -107,20 +107,25 @@ function DashboardPage() {
   const [anchor, setAnchor] = useState(new Date());
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       if (!restaurant) { setLoading(restaurantLoading); return; }
 
       const [{ data: orders }, { data: views }, { data: visits }] = await Promise.all([
-        supabase.from("orders").select("id, total, created_at, status").eq("restaurant_id", restaurant.id).order("created_at", { ascending: false }),
+        supabase.from("orders").select("id, total, created_at, status, paid").eq("restaurant_id", restaurant.id).order("created_at", { ascending: false }),
         supabase.from("menu_views").select("dish_id, dishes(name)").eq("restaurant_id", restaurant.id).not("dish_id", "is", null),
         supabase.from("menu_views").select("created_at").eq("restaurant_id", restaurant.id).is("dish_id", null),
       ]);
 
-      // Cancelled orders never count toward orders, revenue, AOV or conversion.
+      if (cancelled) return;
+
+      // Cancelled orders never count. Revenue & AOV only count orders marked Paid;
+      // the Orders count and conversion include unpaid (but not cancelled) orders.
       const validOrders = (orders ?? []).filter((o) => o.status !== "cancelled");
       const orderCount = validOrders.length;
-      const revenue = validOrders.reduce((sum, o) => sum + Number(o.total), 0);
-      const aov = orderCount ? revenue / orderCount : 0;
+      const paidOrders = validOrders.filter((o) => o.paid);
+      const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const aov = paidOrders.length ? revenue / paidOrders.length : 0;
       const viewCount = visits?.length ?? 0;
       const conversion = viewCount ? Math.round((orderCount / viewCount) * 100) : 0;
 
@@ -141,6 +146,23 @@ function DashboardPage() {
       setLoading(false);
     }
     load();
+
+    // Re-fetch whenever an order changes (new order, status change, Paid/Unpaid toggle).
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    if (restaurant) {
+      channel = supabase
+        .channel("dashboard-orders")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
+          () => load()
+        )
+        .subscribe();
+    }
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
 
@@ -158,10 +180,13 @@ function DashboardPage() {
   const periodValid = periodOrders.filter((o) => o.status !== "cancelled");
   const prevPeriodValid = prevPeriodOrders.filter((o) => o.status !== "cancelled");
 
-  const periodRevenue = periodValid.reduce((sum, o) => sum + Number(o.total), 0);
-  const prevPeriodRevenue = prevPeriodValid.reduce((sum, o) => sum + Number(o.total), 0);
-  const periodAov = periodValid.length ? periodRevenue / periodValid.length : 0;
-  const prevPeriodAov = prevPeriodValid.length ? prevPeriodRevenue / prevPeriodValid.length : 0;
+  // Revenue & AOV count only orders marked Paid.
+  const periodPaid = periodValid.filter((o) => o.paid);
+  const prevPeriodPaid = prevPeriodValid.filter((o) => o.paid);
+  const periodRevenue = periodPaid.reduce((sum, o) => sum + Number(o.total), 0);
+  const prevPeriodRevenue = prevPeriodPaid.reduce((sum, o) => sum + Number(o.total), 0);
+  const periodAov = periodPaid.length ? periodRevenue / periodPaid.length : 0;
+  const prevPeriodAov = prevPeriodPaid.length ? prevPeriodRevenue / prevPeriodPaid.length : 0;
   const periodConversion = periodViews ? Math.round((periodValid.length / periodViews) * 100) : 0;
   const prevPeriodConversion = prevPeriodViews ? Math.round((prevPeriodValid.length / prevPeriodViews) * 100) : 0;
 
@@ -266,6 +291,9 @@ function DashboardPage() {
                         {periodType === "day"
                           ? new Date(o.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                           : new Date(o.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className="text-xs" style={{ color: o.paid ? "#1c7a44" : "#9a9284", fontWeight: 600 }}>
+                        {o.paid ? "Paid" : "Unpaid"}
                       </span>
                       <span className={`status-pill status-${o.status === "new" ? "new" : o.status === "served" ? "served" : o.status === "cancelled" ? "cancelled" : "preparing"}`}>
                         {STATUS_LABEL[o.status] ?? o.status}
