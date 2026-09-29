@@ -234,8 +234,8 @@ body {
 
   /* Dashboard: period switcher wraps instead of overflowing */
   .period-nav{flex-wrap:wrap;gap:6px 8px;}
-  .period-label{min-width:0;flex:1;}
-  .period-date{margin-left:0;flex:1 1 100%;width:100%;min-width:0;}
+  .period-label{min-width:0 !important;flex:1;}
+  .period-date{margin-left:0 !important;flex:1 1 100%;width:100%;min-width:0;max-width:100%;box-sizing:border-box;}
 
   /* Orders: 2-row card (icon + info + chevron, then Paid / status) */
   .order-row{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;
