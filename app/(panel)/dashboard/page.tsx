@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import StatCard from "@/components/StatCard";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 type TopDish = { name: string; views: number };
 type OrderRow = { id: string; total: number; created_at: string; status: string; paid: boolean };
@@ -93,6 +93,15 @@ function DeltaBadge({ curr, prev }: { curr: number; prev: number }) {
   const color = d.tone === "up" ? "#1c7a44" : d.tone === "down" ? "#b23b3b" : d.tone === "new" ? "#8C6428" : "#9a9284";
   return <span style={{ fontSize: 11.5, fontWeight: 600, color }}>{d.text}</span>;
 }
+
+// ---- CSV export helpers ----
+function csvCell(v: unknown) {
+  const str = String(v ?? "");
+  // Neutralise spreadsheet formula injection (=, +, -, @) in text coming from customers/staff.
+  const safe = /^[=+\-@]/.test(str) && isNaN(Number(str)) ? `'${str}` : str;
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+function pad2(n: number) { return String(n).padStart(2, "0"); }
 
 function DashboardPage() {
   const supabase = createClient();
@@ -192,6 +201,77 @@ function DashboardPage() {
 
   const canGoNext = end.getTime() <= Date.now();
 
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
+
+  async function exportCsv() {
+    if (!restaurant || exporting) return;
+    setExporting(true);
+    setExportMsg("");
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, status, total, created_at, paid, qr_codes(label), order_items(quantity, price_at_order, dishes(name))")
+        .eq("restaurant_id", restaurant.id)
+        .gte("created_at", start.toISOString())
+        .lt("created_at", end.toISOString())
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+
+      const rows = (data as any[]) ?? [];
+      if (rows.length === 0) { setExportMsg("No orders in this period to export."); return; }
+
+      const header = ["Order ID", "Date", "Time", "Table", "Status", "Payment", "Items", "Total (INR)"];
+      const lines: string[] = [header.map(csvCell).join(",")];
+      let paidTotal = 0, unpaidTotal = 0;
+
+      rows.forEach((o) => {
+        const d = new Date(o.created_at);
+        const items = (o.order_items ?? [])
+          .map((it: any) => `${it.quantity} x ${it.dishes?.name ?? "Item"}`)
+          .join("; ");
+        const total = Number(o.total) || 0;
+        if (o.status !== "cancelled") { if (o.paid) paidTotal += total; else unpaidTotal += total; }
+        lines.push([
+          String(o.id).slice(0, 8),
+          `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+          `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
+          o.qr_codes?.label ?? "",
+          STATUS_LABEL[o.status] ?? o.status,
+          o.paid ? "Paid" : "Unpaid",
+          items,
+          total,
+        ].map(csvCell).join(","));
+      });
+
+      // Summary (cancelled orders excluded)
+      lines.push("");
+      lines.push(["", "", "", "", "", "Paid revenue", "", paidTotal].map(csvCell).join(","));
+      lines.push(["", "", "", "", "", "Unpaid (pending)", "", unpaidTotal].map(csvCell).join(","));
+
+      // BOM so Excel reads UTF-8 correctly
+      const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const slug = (restaurant as any).slug ?? "restaurant";
+      const last = addDays(end, -1);
+      const tag = periodType === "day"
+        ? toDateInputValue(start)
+        : `${toDateInputValue(start)}_to_${toDateInputValue(last)}`;
+      a.href = url;
+      a.download = `orders-${slug}-${tag}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setExportMsg(`Exported ${rows.length} order${rows.length === 1 ? "" : "s"}.`);
+    } catch {
+      setExportMsg("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <>
         <div className="panel-header">
@@ -253,6 +333,19 @@ function DashboardPage() {
                   style={{ marginLeft: 6 }}
                   aria-label={`Jump to a specific ${periodType}`}
                 />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mb-3.5 flex-wrap">
+                {exportMsg && <span className="text-xs text-inkSoft">{exportMsg}</span>}
+                <button
+                  onClick={exportCsv}
+                  disabled={exporting}
+                  className="inline-flex items-center gap-1.5 border border-ink/15 rounded-md px-3 py-1.5 text-xs font-medium hover:bg-cream transition-colors"
+                  style={{ opacity: exporting ? 0.6 : 1, cursor: exporting ? "default" : "pointer" }}
+                >
+                  <Download size={14} />
+                  {exporting ? "Preparing…" : "Export CSV"}
+                </button>
               </div>
 
               <div className="stat-grid">
