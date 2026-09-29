@@ -216,6 +216,12 @@ body {
     overflow-x:auto;scrollbar-width:none;
   }
   .panel-nav::-webkit-scrollbar{display:none;}
+  .panel-nav{scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;min-width:0;}
+  .panel-nav .panel-link{scroll-snap-align:center;}
+  /* fade hints: more tabs hidden off-screen on that side */
+  .panel-nav.fade-right{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);}
+  .panel-nav.fade-left{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px);mask-image:linear-gradient(to right,transparent,#000 36px);}
+  .panel-nav.fade-left.fade-right{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);}
   .panel-nav .panel-link{flex:none;padding:8px 13px;white-space:nowrap;gap:7px;border:1px solid rgba(30,27,22,0.1);}
   .panel-nav .panel-link > span:not(.nav-badge){display:inline;}
   .panel-link.active::before{display:none;}
