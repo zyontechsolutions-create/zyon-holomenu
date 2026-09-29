@@ -17,50 +17,11 @@ type Dish = {
   is_veg: boolean;
 };
 type Category = { id: string; name: string; sort_order: number };
-type Restaurant = { id: string; name: string; upi_id: string | null };
+type Restaurant = { id: string; name: string; upi_id: string | null; upi_enabled: boolean };
 
-// Personal-VPA-safe UPI link: no prefilled amount / merchant fields (apps decline those for personal IDs),
-// and proper %20 encoding (URLSearchParams uses "+", which UPI apps don't decode).
-function buildUpiLink(upiId: string, payeeName: string, note: string) {
-  const clean = (v: string) => v.replace(/[^\w .-]/g, "").trim();
-  const q = [
-    ["pa", upiId.trim()],
-    ["pn", clean(payeeName) || "Restaurant"],
-    ["tn", clean(note)],
-    ["cu", "INR"],
-  ]
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-    .join("&");
-  return `upi://pay?${q}`;
-}
-
-function UpiPay({ upiId, name, total, orderId }: { upiId: string; name: string; total: number; orderId: string }) {
-  const [copied, setCopied] = useState(false);
-  const amount = total.toFixed(2).replace(/\.00$/, "");
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(upiId.trim());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  }
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <a
-        href={buildUpiLink(upiId, name, `Order ${orderId.slice(0, 8)}`)}
-        className="ar-launch"
-        style={{ display: "block", textAlign: "center", textDecoration: "none", marginBottom: 8 }}
-      >
-        Pay via UPI
-      </a>
-      <p className="ar-note" style={{ textAlign: "center", marginBottom: 6 }}>
-        Enter <strong>₹{amount}</strong> in your UPI app
-      </p>
-      <button type="button" onClick={copy} className="ar-note" style={{ display: "block", margin: "0 auto", background: "none", border: "none", textDecoration: "underline", cursor: "pointer" }}>
-        {copied ? "Copied ✓" : `Copy UPI ID: ${upiId.trim()}`}
-      </button>
-    </div>
-  );
+function buildUpiLink(upiId: string, payeeName: string, amount: number, note: string) {
+  const params = new URLSearchParams({ pa: upiId, pn: payeeName, am: amount.toFixed(2), cu: "INR", tn: note });
+  return `upi://pay?${params.toString()}`;
 }
 type OrderSummaryItem = { name: string; qty: number; price: number; note?: string };
 
@@ -378,7 +339,15 @@ export default function CustomerMenuPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: r } = await supabase.from("restaurants").select("id, name, upi_id").eq("slug", slug).single();
+      // upi_enabled may not exist yet if the SQL migration hasn't run — fall back so the menu never breaks.
+      let r: Restaurant | null = null;
+      const withToggle = await supabase.from("restaurants").select("id, name, upi_id, upi_enabled").eq("slug", slug).single();
+      if (withToggle.data) {
+        r = withToggle.data as Restaurant;
+      } else {
+        const legacy = await supabase.from("restaurants").select("id, name, upi_id").eq("slug", slug).single();
+        if (legacy.data) r = { ...legacy.data, upi_enabled: false } as Restaurant;
+      }
       if (!r) { setLoading(false); return; }
       setRestaurant(r);
 
@@ -946,8 +915,14 @@ export default function CustomerMenuPage() {
                 <StarRating value={lastOrder.rating} onRate={(stars) => submitRating(lastOrder.id, stars)} />
               </div>
             )}
-            {restaurant.upi_id && !lastOrder.paid && (
-              <UpiPay upiId={restaurant.upi_id} name={restaurant.name} total={lastOrder.total} orderId={lastOrder.id} />
+            {restaurant.upi_id && restaurant.upi_enabled && !lastOrder.paid && (
+              <a
+                href={buildUpiLink(restaurant.upi_id, restaurant.name, lastOrder.total, `Order ${lastOrder.id.slice(0, 8)}`)}
+                className="ar-launch"
+                style={{ display: "block", textAlign: "center", textDecoration: "none", marginBottom: 10 }}
+              >
+                Pay ₹{lastOrder.total.toFixed(0)} via UPI
+              </a>
             )}
             {restaurant.upi_id && lastOrder.paid && (
               <p className="ar-note" style={{ textAlign: "center", color: "#1c7a44", fontWeight: 600, marginBottom: 10 }}>
@@ -987,8 +962,14 @@ export default function CustomerMenuPage() {
                       <span>Total</span>
                       <span>₹{o.total}</span>
                     </div>
-                    {restaurant.upi_id && o.status !== "cancelled" && !o.paid && (
-                      <UpiPay upiId={restaurant.upi_id} name={restaurant.name} total={o.total} orderId={o.id} />
+                    {restaurant.upi_id && restaurant.upi_enabled && o.status !== "cancelled" && !o.paid && (
+                      <a
+                        href={buildUpiLink(restaurant.upi_id, restaurant.name, o.total, `Order ${o.id.slice(0, 8)}`)}
+                        className="ar-launch"
+                        style={{ textDecoration: "none", marginTop: 10 }}
+                      >
+                        Pay ₹{o.total.toFixed(0)} via UPI
+                      </a>
                     )}
                     {restaurant.upi_id && o.paid && (
                       <p className="ar-note" style={{ textAlign: "center", color: "#1c7a44", fontWeight: 600, marginTop: 10 }}>
