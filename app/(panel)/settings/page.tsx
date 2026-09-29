@@ -10,6 +10,7 @@ function SettingsPage() {
   const [upiId, setUpiId] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -25,6 +26,12 @@ function SettingsPage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!restaurant) return;
+    const v = upiId.trim();
+    if (v && !/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/.test(v)) {
+      setError("Enter a valid UPI ID, e.g. name@okhdfcbank");
+      return;
+    }
+    setError("");
     setSaving(true);
     await supabase.from("restaurants").update({ upi_id: upiId.trim() || null }).eq("id", restaurant.id);
     setSaving(false);
@@ -58,6 +65,7 @@ function SettingsPage() {
             {saving ? "Saving..." : "Save"}
           </button>
         </form>
+        {error && <p className="text-xs text-red-600 mt-2.5">{error}</p>}
         {saved && (
           <p className="text-xs text-inkSoft mt-2.5 flex items-center gap-1.5">
             <Check size={13} /> Saved
