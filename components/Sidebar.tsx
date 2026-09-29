@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail, Settings } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { unlockAudioPlayback } from "@/lib/notificationSound";
@@ -26,6 +26,35 @@ export default function Sidebar() {
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
   const [soundEnabled, setSoundEnabled] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const [edge, setEdge] = useState({ left: false, right: false });
+
+  // Mobile: show a fade on whichever side has more tabs hidden.
+  function updateEdges() {
+    const el = navRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setEdge((e) => (e.left === left && e.right === right ? e : { left, right }));
+  }
+
+  // Mobile: keep the active tab visible (centred) when the page/route changes.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.querySelector<HTMLElement>(".panel-link.active");
+    if (active && nav.scrollWidth > nav.clientWidth) {
+      nav.scrollTo({ left: active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+    }
+    const t = setTimeout(updateEdges, 350);
+    return () => clearTimeout(t);
+  }, [pathname, isAdmin]);
+
+  useEffect(() => {
+    updateEdges();
+    window.addEventListener("resize", updateEdges);
+    return () => window.removeEventListener("resize", updateEdges);
+  }, [isAdmin]);
 
   function handleEnableSound() {
     unlockAudioPlayback();
@@ -44,7 +73,11 @@ export default function Sidebar() {
         <div className="corner-sm" aria-hidden="true" />
         <p>ZYON <span>HOLOMENU</span></p>
       </div>
-      <nav className="panel-nav">
+      <nav
+        ref={navRef}
+        onScroll={updateEdges}
+        className={`panel-nav ${edge.left ? "fade-left" : ""} ${edge.right ? "fade-right" : ""}`}
+      >
         {isAdmin && (
           <Link href="/admin" className={`panel-link ${pathname === "/admin" ? "active" : ""}`}>
             <Building2 size={16} strokeWidth={1.8} />
