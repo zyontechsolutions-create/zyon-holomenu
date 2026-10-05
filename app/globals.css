@@ -253,3 +253,30 @@ body {
   .order-controls .status-pill{min-width:0;}
   .order-controls select.status-pill{flex:1;}
 }
+
+/* ---------- Billing ---------- */
+.bill-overlay{position:fixed;inset:0;z-index:100;background:rgba(30,27,22,0.55);display:flex;align-items:flex-end;justify-content:center;overflow-y:auto;padding:0;}
+.bill-dialog{background:#FBF8F1;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;border-radius:14px 14px 0 0;padding:16px 18px 22px;}
+@media (min-width:640px){.bill-overlay{align-items:center;padding:24px;}.bill-dialog{border-radius:12px;}}
+.bill-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.bill-sheet{background:#fff;border:1px solid rgba(30,27,22,0.12);border-radius:6px;padding:18px 16px;font-family:'Jost',sans-serif;font-size:13px;color:#1E1B16;}
+.bill-center{text-align:center;}
+.bill-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:600;margin:0 0 2px;}
+.bill-small{font-size:11.5px;color:#4a4437;margin:0;}
+.bill-title{text-align:center;font-weight:600;letter-spacing:2px;font-size:12px;margin:0 0 6px;}
+.bill-rule{border-top:1px dashed rgba(30,27,22,0.35);margin:9px 0;}
+.bill-row{display:flex;justify-content:space-between;gap:12px;padding:2px 0;}
+.bill-row > span:last-child{white-space:nowrap;text-align:right;}
+.bill-head{font-weight:600;font-size:11px;letter-spacing:1px;text-transform:uppercase;}
+.bill-total{font-weight:700;font-size:15px;padding-top:4px;}
+.bill-actions{display:flex;gap:10px;margin-top:14px;}
+.bill-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 16px;border:1px solid rgba(30,27,22,0.2);border-radius:6px;font-size:13px;background:transparent;}
+@media print{
+  @page{margin:8mm;}
+  /* Remove everything except the bill from the printed page (no blank pages) */
+  body > *:not(.bill-overlay){display:none !important;}
+  .bill-overlay{position:static !important;background:none !important;padding:0 !important;overflow:visible !important;display:block !important;}
+  .bill-dialog{max-height:none !important;max-width:none !important;overflow:visible !important;padding:0 !important;background:none !important;border-radius:0 !important;}
+  .bill-dialog > *:not(.bill-print){display:none !important;}
+  .bill-sheet{border:none !important;max-width:80mm;margin:0 auto;padding:0 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
