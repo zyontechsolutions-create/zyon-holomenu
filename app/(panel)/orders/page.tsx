@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { useSearchParams } from "next/navigation";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
-import { ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, ChevronDown, ChevronUp, Receipt } from "lucide-react";
+import BillModal from "@/components/BillModal";
+import { formatBillNo } from "@/lib/billing";
 
 type OrderItem = { quantity: number; price_at_order: number; note: string | null; dishes: { name: string } | null };
 type Order = {
@@ -11,6 +14,8 @@ type Order = {
   total: number;
   created_at: string;
   paid: boolean;
+  bill_number: number | null;
+  bill_details: { prefix?: string } | null;
   qr_codes: { label: string } | null;
   order_items: OrderItem[];
 };
@@ -28,11 +33,16 @@ function OrdersPage() {
   const { restaurant, clearNewOrders } = useActiveRestaurant();
   const [orders, setOrders] = useState<Order[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [billOrderId, setBillOrderId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+  const searchParams = useSearchParams();
+  const overrideId = searchParams.get("restaurant");
+  const settingsHref = overrideId ? `/settings?restaurant=${overrideId}` : "/settings";
 
   async function loadOrders(rid: string) {
     const { data } = await supabase
       .from("orders")
-      .select("id, status, total, created_at, paid, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
+      .select("id, status, total, created_at, paid, bill_number, bill_details, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
       .eq("restaurant_id", rid)
       .order("created_at", { ascending: false });
     setOrders((data as any) ?? []);
@@ -60,12 +70,20 @@ function OrdersPage() {
   }, [restaurant?.id]);
 
   async function updateStatus(id: string, status: string) {
-    await supabase.from("orders").update({ status }).eq("id", id);
+    setActionError("");
+    const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+    if (error) {
+      setActionError(/billed order cannot be cancelled/i.test(error.message)
+        ? "This order already has a bill, so it can't be cancelled."
+        : "Couldn't update the order. Please try again.");
+    }
     if (restaurant) loadOrders(restaurant.id);
   }
 
   async function togglePaid(id: string, current: boolean) {
-    await supabase.from("orders").update({ paid: !current }).eq("id", id);
+    setActionError("");
+    const { error } = await supabase.from("orders").update({ paid: !current }).eq("id", id);
+    if (error) setActionError("Couldn't update payment status. Please try again.");
     if (restaurant) loadOrders(restaurant.id);
   }
 
@@ -81,6 +99,10 @@ function OrdersPage() {
             <h1 className="panel-title">Orders</h1>
           </div>
         </div>
+
+        {actionError && (
+          <p className="text-xs text-red-600 mb-3" role="alert">{actionError}</p>
+        )}
 
         <div className="space-y-2.5">
           {orders.map((order, i) => {
@@ -146,6 +168,19 @@ function OrdersPage() {
                     {(!order.order_items || order.order_items.length === 0) && (
                       <p className="text-sm text-inkSoft">No item details for this order.</p>
                     )}
+                    {order.status !== "cancelled" && (
+                      <div className="pt-2 flex items-center gap-3">
+                        <button
+                          onClick={() => setBillOrderId(order.id)}
+                          className="inline-flex items-center gap-1.5 border border-ink/15 rounded-md px-3 py-1.5 text-xs font-medium hover:bg-cream transition-colors"
+                        >
+                          <Receipt size={14} /> {order.bill_number ? "View bill" : "Generate bill"}
+                        </button>
+                        {order.bill_number && (
+                          <span className="text-xs text-inkSoft">{formatBillNo(order.bill_details?.prefix, order.bill_number)}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -157,6 +192,13 @@ function OrdersPage() {
             </div>
           )}
         </div>
+        {billOrderId && (
+          <BillModal
+            orderId={billOrderId}
+            settingsHref={settingsHref}
+            onClose={() => { setBillOrderId(null); if (restaurant) loadOrders(restaurant.id); }}
+          />
+        )}
       </>
   );
 }
