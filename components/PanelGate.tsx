@@ -1,47 +1,88 @@
 "use client";
+import { useEffect } from "react";
+import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
-import Sidebar from "@/components/Sidebar";
+import { buildTicketHtml, getAutoPrint, isPrinted, markPrinted, printHtml, TicketOrder } from "@/lib/autoPrint";
 
-export default function PanelGate({ children }: { children: React.ReactNode }) {
-  const { restaurant, isAdmin, loading } = useActiveRestaurant();
+const POLL_MS = 15000;
+const CATCHUP_MS = 30 * 60 * 1000; // never print orders older than this
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-inkSoft">
-        Loading...
-      </div>
-    );
-  }
+// Invisible. Runs in the background of the whole panel and prints a kitchen
+// ticket for every new order, if this device has Auto-print switched on.
+export default function AutoPrintStation() {
+  const supabase = createClient();
+  const { restaurant } = useActiveRestaurant();
 
-  // Admins always get full access (e.g. to review/set up a client's
-  // menu before approving them). Only a restaurant's own owner sees
-  // the pending screen.
-  if (restaurant && restaurant.status === "pending" && !isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-6 relative overflow-hidden">
-        <div className="auth-glow" aria-hidden="true" />
-        <div className="section-card fade-up w-full max-w-sm relative z-10 text-center" style={{ padding: 34 }}>
-          <div className="relative" style={{ paddingLeft: 22, display: "inline-block" }}>
-            <div className="corner-sm" style={{ position: "absolute", top: 0, left: 0 }} aria-hidden="true" />
-            <p className="panel-eyebrow" style={{ paddingLeft: 0 }}>
-              ZYON <span style={{ color: "#8C6428" }}>HOLOMENU</span>
-            </p>
-          </div>
-          <h1 className="panel-title" style={{ fontSize: 22, marginTop: 14 }}>Almost there</h1>
-          <p className="text-sm text-inkSoft mt-3">
-            Your restaurant &quot;{restaurant.name}&quot; is set up and waiting on approval from our
-            team — this happens shortly after your plan is confirmed. We&apos;ll notify you the moment
-            it&apos;s live.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!restaurant) return;
+    const rid = restaurant.id;
+    const name = restaurant.name;
+    const mountedAt = Date.now() - 5000;
+    const handled = new Set<string>();
+    let stopped = false;
+    let busy = false;
 
-  return (
-    <div className="panel-shell">
-      <Sidebar />
-      <main className="panel-main">{children}</main>
-    </div>
-  );
+    async function check() {
+      if (stopped || busy) return;
+      const s = getAutoPrint(rid);
+      if (!s.enabled) return;
+      busy = true;
+      try {
+        const from = new Date(Math.max(mountedAt, s.enabledAt, Date.now() - CATCHUP_MS)).toISOString();
+        const { data } = await supabase
+          .from("orders")
+          .select("id, status, created_at, qr_codes(label), order_items(quantity, note, dishes(name))")
+          .eq("restaurant_id", rid)
+          .gte("created_at", from)
+          .order("created_at", { ascending: true })
+          .limit(50);
+
+        for (const o of ((data as any[]) ?? [])) {
+          if (stopped) break;
+          if (handled.has(o.id) || isPrinted(rid, o.id)) continue;
+          if (o.status === "cancelled") { handled.add(o.id); continue; }
+          const items = o.order_items ?? [];
+          if (items.length === 0) {
+            // Items are saved a moment after the order. Wait for the next check,
+            // but give up on orders that never get items.
+            if (Date.now() - new Date(o.created_at).getTime() > 2 * 60 * 1000) handled.add(o.id);
+            continue;
+          }
+          handled.add(o.id);
+          markPrinted(rid, o.id); // mark first so a crash can never cause a reprint loop
+          await printHtml(buildTicketHtml(name, o as TicketOrder, getAutoPrint(rid).width));
+        }
+      } finally {
+        busy = false;
+      }
+    }
+
+    // Instant: react to a new order, then re-check shortly (its items arrive a moment later).
+    const channel = supabase
+      .channel(`auto-print-${rid}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: `restaurant_id=eq.${rid}` },
+        () => {
+          setTimeout(check, 2000);
+          setTimeout(check, 5000);
+        }
+      )
+      .subscribe();
+
+    // Safety net: catches anything missed (dropped connection, sleeping tab).
+    const timer = setInterval(check, POLL_MS);
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.id]);
+
+  return null;
 }
