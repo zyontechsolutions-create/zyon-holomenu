@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+// react-dom ships no types in this project (@types/react-dom is not installed); it exists at runtime.
+// @ts-ignore
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Printer, Share2, X, RefreshCw } from "lucide-react";
