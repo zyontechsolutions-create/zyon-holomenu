@@ -754,13 +754,19 @@ export default function CustomerMenuPage() {
             <div className="ar-visual">
               <span className="ar-badge"><ScanIcon /> AR</span>
               {/* @ts-ignore */}
-              <model-viewer
-                ref={modelViewerRef}
-                src={arDish.ar_model_url}
-                camera-controls
-                auto-rotate
-                style={{ width: "100%", height: "100%" }}
-              />
+              {/* @ts-ignore */}
+<model-viewer
+  ref={modelViewerRef}
+  src={arDish.ar_model_url}
+  ar
+  ar-modes="webxr scene-viewer quick-look"
+  ar-scale="fixed"
+  ar-placement="floor"
+  camera-controls
+  auto-rotate
+  shadow-intensity="1"
+  style={{ width: "100%", height: "100%" }}
+/>
               {/* @ts-ignore */}
             </div>
             <h3>{arDish.name}</h3>
