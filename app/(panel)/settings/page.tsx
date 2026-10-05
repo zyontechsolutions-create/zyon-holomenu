@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { Check } from "lucide-react";
 import { GST_RATES, GSTIN_RE } from "@/lib/billing";
+import { buildTicketHtml, getAutoPrint, printHtml, saveAutoPrint, AutoPrintSettings } from "@/lib/autoPrint";
 
 function SettingsPage() {
   const supabase = createClient();
@@ -15,6 +16,32 @@ function SettingsPage() {
   const [upiEnabled, setUpiEnabled] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState("");
+
+  // ---- Auto-print (this device only) ----
+  const [ap, setAp] = useState<AutoPrintSettings>({ enabled: false, enabledAt: 0, width: 80 });
+  useEffect(() => {
+    if (restaurant) setAp(getAutoPrint(restaurant.id));
+  }, [restaurant?.id]);
+  function updateAp(next: Partial<AutoPrintSettings>) {
+    if (!restaurant) return;
+    const merged = { ...ap, ...next };
+    if (next.enabled === true && !ap.enabled) merged.enabledAt = Date.now();
+    setAp(merged);
+    saveAutoPrint(restaurant.id, merged);
+  }
+  async function testPrint() {
+    if (!restaurant) return;
+    const sample = {
+      id: "TEST0000-0000",
+      created_at: new Date().toISOString(),
+      qr_codes: { label: "Table 1" },
+      order_items: [
+        { quantity: 2, note: null, dishes: { name: "Butter Chicken" } },
+        { quantity: 1, note: "Less spicy", dishes: { name: "Garlic Naan" } },
+      ],
+    };
+    await printHtml(buildTicketHtml(restaurant.name, sample, ap.width, "TEST PRINT"));
+  }
 
   // ---- Billing details ----
   const emptyBilling = { legal_name: "", address: "", phone: "", gstin: "", gst_rate: 5, prices_include_gst: true, bill_prefix: "INV", bill_footer: "" };
@@ -186,6 +213,48 @@ function SettingsPage() {
             <Check size={13} /> Saved
           </p>
         )}
+      </div>
+
+      <div className="section-card max-w-sm mt-5">
+        <div className="flex items-center justify-between mb-3 pb-3 border-b border-ink/10">
+          <div className="pr-4">
+            <p className="text-sm font-medium">Auto-print new orders</p>
+            <p className="text-xs text-inkSoft mt-0.5">
+              {ap.enabled ? "This device prints a kitchen ticket for every new order." : "Off on this device."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={ap.enabled}
+            aria-label="Auto-print new orders"
+            onClick={() => updateAp({ enabled: !ap.enabled })}
+            className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${ap.enabled ? "bg-gold" : "bg-ink/20"}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ap.enabled ? "translate-x-5" : ""}`} />
+          </button>
+        </div>
+        <div className="flex items-end gap-3">
+          <label className="block flex-1">
+            <span className="text-xs text-inkSoft">Paper width</span>
+            <select
+              value={ap.width}
+              onChange={(e) => updateAp({ width: Number(e.target.value) === 58 ? 58 : 80 })}
+              className="mt-1 w-full border border-ink/15 rounded-md px-3 py-2.5 text-sm bg-cream focus:outline-none focus:border-gold"
+            >
+              <option value={80}>80 mm</option>
+              <option value={58}>58 mm</option>
+            </select>
+          </label>
+          <button type="button" onClick={testPrint} className="border border-ink/15 rounded-md px-4 py-2.5 text-sm hover:bg-cream transition-colors">
+            Test print
+          </button>
+        </div>
+        <p className="text-xs text-inkSoft mt-3 leading-relaxed">
+          Turn this on only on the device connected to the printer, and keep the panel open in the foreground there.
+          Only orders that arrive after you switch it on are printed. For printing with no dialog on a PC, start Chrome
+          with <code>--kiosk-printing</code> and set the receipt printer as the default printer.
+        </p>
       </div>
 
       <div className="section-card max-w-sm mt-5">
