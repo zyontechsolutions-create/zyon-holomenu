@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { Check } from "lucide-react";
 import { GST_RATES, GSTIN_RE } from "@/lib/billing";
+import StaffManager from "@/components/StaffManager";
 import { buildTicketHtml, getAutoPrint, printHtml, saveAutoPrint, AutoPrintSettings } from "@/lib/autoPrint";
 
 function SettingsPage() {
@@ -256,6 +257,8 @@ function SettingsPage() {
           with <code>--kiosk-printing</code> and set the receipt printer as the default printer.
         </p>
       </div>
+
+      {restaurant && <StaffManager restaurantId={restaurant.id} slug={restaurant.slug} />}
 
       <div className="section-card max-w-sm mt-5">
         <p className="text-sm font-medium mb-1">Billing details</p>
