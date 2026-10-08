@@ -35,6 +35,9 @@ export default function KitchenPage() {
   const [error, setError] = useState("");
   const [soundOn, setSoundOn] = useState(false);
   const [awake, setAwake] = useState(false);
+  const [tab, setTab] = useState<"new" | "preparing" | "served">("new"); // phone only: which column is visible
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<any>(null);
   const wakeLock = useRef<any>(null);
   const [ap, setAp] = useState<AutoPrintSettings>({ enabled: false, enabledAt: 0, width: 80 });
   useEffect(() => {
@@ -125,6 +128,10 @@ export default function KitchenPage() {
   async function move(order: KOrder, status: "new" | "preparing" | "served") {
     const prev = order.status;
     setError("");
+    const label = status === "preparing" ? "Preparing" : status === "served" ? "Served" : "New";
+    setToast(`${order.qr_codes?.label ?? "Order"} moved to ${label}`);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2200);
     setOrders((list) => list.map((o) => (o.id === order.id ? { ...o, status } : o))); // instant
     const { data, error: err } = await supabase.from("orders").update({ status }).eq("id", order.id).select("id");
     if (err || !data || data.length === 0) {
@@ -187,7 +194,7 @@ export default function KitchenPage() {
       ) : (
         <div className="kitchen-board">
           {columns.map((col) => (
-            <section key={col.key} className={`kitchen-col kcol-${col.key}`}>
+            <section key={col.key} className={`kitchen-col kcol-${col.key} ${tab === col.key ? "k-active" : ""}`}>
               <h2 className="kitchen-col-title">
                 {col.title} <span>{col.list.length}</span>
               </h2>
@@ -241,6 +248,25 @@ export default function KitchenPage() {
             </section>
           ))}
         </div>
+      )}
+
+      {loaded && (
+        <>
+          {toast && <div className="kitchen-toast" role="status">{toast}</div>}
+          <nav className="kitchen-tabs" aria-label="Order status">
+            {columns.map((col) => (
+              <button
+                key={col.key}
+                className={`kitchen-tab kt-${col.key} ${tab === col.key ? "on" : ""}`}
+                onClick={() => setTab(col.key)}
+                aria-pressed={tab === col.key}
+              >
+                {col.key === "served" ? "Served" : col.title}
+                <span>{col.list.length}</span>
+              </button>
+            ))}
+          </nav>
+        </>
       )}
     </>
   );
