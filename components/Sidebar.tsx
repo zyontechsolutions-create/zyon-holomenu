@@ -22,7 +22,9 @@ export default function Sidebar() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClient();
-  const { isAdmin, newOrderCount, waiterCallCount } = useActiveRestaurant();
+  const { isAdmin, newOrderCount, waiterCallCount, role, staffName } = useActiveRestaurant();
+  const isStaff = role === "kitchen" || role === "cashier";
+  const visibleLinks = role === "kitchen" ? links.filter((l) => l.href === "/kitchen") : role === "cashier" ? links.filter((l) => l.href === "/orders") : links;
 
   const restaurantParam = searchParams.get("restaurant");
   const suffix = restaurantParam ? `?restaurant=${restaurantParam}` : "";
@@ -65,7 +67,7 @@ export default function Sidebar() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push(isStaff ? "/staff-login" : "/login");
   }
 
   return (
@@ -91,7 +93,7 @@ export default function Sidebar() {
             <span>Support Tickets</span>
           </Link>
         )}
-        {links.map(({ href, label, icon: Icon }) => {
+        {visibleLinks.map(({ href, label, icon: Icon }) => {
           const active = pathname?.startsWith(href);
           return (
             <Link key={href} href={`${href}${suffix}`} className={`panel-link ${active ? "active" : ""}`}>
@@ -108,6 +110,11 @@ export default function Sidebar() {
         })}
       </nav>
       <div className="panel-foot">
+        {isStaff && (
+          <p className="text-xs text-inkSoft px-3.5 pb-2">
+            {staffName} · <span className="capitalize">{role}</span>
+          </p>
+        )}
         <button onClick={handleEnableSound} className="panel-link w-full">
           <Volume2 size={16} strokeWidth={1.8} />
           <span>{soundEnabled ? "Sound enabled ✓" : "Enable sound alerts"}</span>
