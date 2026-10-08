@@ -80,7 +80,11 @@ function OrdersPage() {
       .from("orders")
       .select("id, status, total, created_at, paid, qr_code_id, bill_number, bill_details, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
       .eq("restaurant_id", rid)
-      .order("created_at", { ascending: false });
+      // Keep the panel fast as history grows: last 7 days, plus ANY unpaid order
+      // (so an old unpaid bill is never hidden), capped at 500 rows.
+      .or(`created_at.gte.${new Date(Date.now() - 7 * 86400000).toISOString()},paid.eq.false`)
+      .order("created_at", { ascending: false })
+      .limit(500);
     if (seq !== loadSeq.current) return; // a newer load is already in flight
     if (error || !data) return;          // keep what's on screen instead of blanking it
     setOrders(data as any);
