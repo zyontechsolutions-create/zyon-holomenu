@@ -275,11 +275,11 @@ function MenuPage() {
                         <UtensilsCrossed size={18} strokeWidth={1.5} />
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                    <div className="dish-info flex-1 min-w-0">
+                      <p className="dish-name text-sm font-medium flex items-start gap-1.5">
                         <span
                           style={{
-                            width: 11, height: 11, flexShrink: 0,
+                            width: 11, height: 11, flexShrink: 0, marginTop: 3,
                             border: `1.5px solid ${dish.is_veg ? "#1c7a44" : "#b23b3b"}`,
                             borderRadius: 2, display: "inline-flex", alignItems: "center", justifyContent: "center",
                           }}
@@ -290,10 +290,11 @@ function MenuPage() {
                             <span style={{ width: 0, height: 0, borderLeft: "3px solid transparent", borderRight: "3px solid transparent", borderBottom: "5px solid #b23b3b" }} />
                           )}
                         </span>
-                        {dish.name}
+                        <span className="min-w-0 break-words">{dish.name}</span>
                       </p>
                       <p className="text-xs text-goldDeep mt-0.5 font-medium">₹{dish.price}</p>
                     </div>
+                    <div className="dish-actions">
                     <button
                       onClick={() => toggleAvailable(dish)}
                       className={`status-pill ${dish.is_available ? "status-new" : "status-cancelled"}`}
@@ -311,6 +312,7 @@ function MenuPage() {
                     <button onClick={() => handleDelete(dish.id)} className="p-2 text-inkSoft hover:text-red-600 transition-colors">
                       <Trash2 size={15} />
                     </button>
+                    </div>
                   </div>
                 ))}
               </div>
