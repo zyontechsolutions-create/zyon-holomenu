@@ -1,10 +1,28 @@
 "use client";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import Sidebar from "@/components/Sidebar";
 import AutoPrintStation from "@/components/AutoPrintStation";
 
 export default function PanelGate({ children }: { children: React.ReactNode }) {
-  const { restaurant, isAdmin, loading } = useActiveRestaurant();
+  const { restaurant, isAdmin, loading, role, accessDisabled } = useActiveRestaurant();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Staff may only use their own page. (The database enforces this too; this keeps the screen tidy.)
+  const staffHome = role === "kitchen" ? "/kitchen" : role === "cashier" ? "/orders" : null;
+  const outsideHome = !!staffHome && !pathname?.startsWith(staffHome);
+
+  useEffect(() => {
+    if (staffHome && outsideHome) router.replace(staffHome);
+  }, [staffHome, outsideHome, router]);
+
+  useEffect(() => {
+    if (!accessDisabled) return;
+    createClient().auth.signOut().then(() => router.replace("/staff-login?disabled=1"));
+  }, [accessDisabled, router]);
 
   if (loading) {
     return (
@@ -13,6 +31,8 @@ export default function PanelGate({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  if (accessDisabled || outsideHome) return null;
 
   // Admins always get full access (e.g. to review/set up a client's
   // menu before approving them). Only a restaurant's own owner sees
