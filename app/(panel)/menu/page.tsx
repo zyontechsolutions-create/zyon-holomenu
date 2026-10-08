@@ -266,7 +266,7 @@ function MenuPage() {
               </p>
               <div className="space-y-2.5">
                 {group.items.map((dish, i) => (
-                  <div key={dish.id} className="list-row fade-up" style={{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }}>
+                  <div key={dish.id} className="list-row mrow fade-up" style={{ animationDelay: `${Math.min(i * 0.04, 0.3)}s` }}>
                     {dish.photo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={dish.photo_url} alt={dish.name} className="w-14 h-14 rounded-md object-cover" />
@@ -275,7 +275,7 @@ function MenuPage() {
                         <UtensilsCrossed size={18} strokeWidth={1.5} />
                       </div>
                     )}
-                    <div className="dish-info flex-1 min-w-0">
+                    <div className="mrow-info flex-1 min-w-0">
                       <p className="dish-name text-sm font-medium flex items-start gap-1.5">
                         <span
                           style={{
@@ -294,7 +294,7 @@ function MenuPage() {
                       </p>
                       <p className="text-xs text-goldDeep mt-0.5 font-medium">₹{dish.price}</p>
                     </div>
-                    <div className="dish-actions">
+                    <div className="mrow-actions">
                     <button
                       onClick={() => toggleAvailable(dish)}
                       className={`status-pill ${dish.is_available ? "status-new" : "status-cancelled"}`}
