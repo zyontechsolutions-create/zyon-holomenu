@@ -20,7 +20,7 @@ type BillOrder = {
   order_items: { quantity: number; price_at_order: number; dishes: { name: string } | null }[];
 };
 
-export default function BillModal({ orderId, onClose, settingsHref = "/settings" }: { orderId: string; onClose: () => void; settingsHref?: string }) {
+export default function BillModal({ orderId, onClose, settingsHref = "/settings", canRefresh = true }: { orderId: string; onClose: () => void; settingsHref?: string; canRefresh?: boolean }) {
   const supabase = createClient();
   const [order, setOrder] = useState<BillOrder | null>(null);
   const [error, setError] = useState("");
@@ -127,7 +127,11 @@ export default function BillModal({ orderId, onClose, settingsHref = "/settings"
           <>
             {incomplete && (
               <p className="text-xs text-goldDeep bg-creamDeep rounded-md px-3 py-2 mb-3">
-                Add your address and GSTIN in <Link href={settingsHref} className="underline">Settings</Link>, then tap Refresh details.
+                {canRefresh ? (
+                  <>Add your address and GSTIN in <Link href={settingsHref} className="underline">Settings</Link>, then tap Refresh details.</>
+                ) : (
+                  <>This bill has no address or GSTIN. Ask the owner to add them in Settings.</>
+                )}
               </p>
             )}
 
@@ -174,13 +178,15 @@ export default function BillModal({ orderId, onClose, settingsHref = "/settings"
               </button>
               <button className="bill-btn" onClick={share}><Share2 size={15} /> Share</button>
             </div>
-            <button
-              className="text-xs text-inkSoft underline mt-3 inline-flex items-center gap-1.5 disabled:opacity-50"
-              onClick={() => load(true)}
-              disabled={busy}
-            >
-              <RefreshCw size={12} /> Refresh details from Settings
-            </button>
+            {canRefresh && (
+              <button
+                className="text-xs text-inkSoft underline mt-3 inline-flex items-center gap-1.5 disabled:opacity-50"
+                onClick={() => load(true)}
+                disabled={busy}
+              >
+                <RefreshCw size={12} /> Refresh details from Settings
+              </button>
+            )}
           </>
         )}
       </div>
