@@ -155,7 +155,7 @@ body {
   background:#FBF8F1;border:1px solid rgba(30,27,22,0.1);border-radius:8px;padding:15px 16px;
   display:flex;align-items:center;gap:16px;transition:box-shadow .3s cubic-bezier(.16,1,.3,1), transform .3s cubic-bezier(.16,1,.3,1);
 }
-.dish-actions{display:flex;align-items:center;gap:8px;flex:none;}
+.mrow-actions{display:flex;align-items:center;gap:8px;flex:none;}
 .list-row:hover{box-shadow:0 16px 28px -20px rgba(30,27,22,0.28);transform:translateY(-2px);}
 
 .status-pill{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:6px 13px;border-radius:999px;font-weight:500;border:none;}
@@ -235,10 +235,12 @@ body {
   .stat-card-v2 .num{font-size:23px;}
   .section-card{padding:18px;}
   .list-row{flex-wrap:wrap;gap:10px 12px;}
-  /* Menu rows: name gets the full width beside the photo; actions drop to their own row */
-  .dish-info{flex:1 1 0;min-width:0;}
-  .dish-actions{flex:1 1 100%;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(30,27,22,0.08);}
-  .dish-actions .status-pill:first-child{margin-right:auto;}
+  /* Menu manager rows: photo + name/price on top, compact action bar underneath */
+  .mrow{padding:12px 14px;gap:8px 12px;}
+  .mrow-info{flex:1 1 0;min-width:0;}
+  .mrow-actions{flex:1 1 100%;gap:4px;padding-top:8px;border-top:1px solid rgba(30,27,22,0.08);}
+  .mrow-actions .status-pill{margin-right:auto;padding:5px 11px;}
+  .mrow-actions button:not(.status-pill){padding:6px 10px;}
   /* keep anything wide from pushing the page sideways */
   .panel-shell{overflow-x:clip;max-width:100vw;}
   .panel-sidebar{max-width:100vw;}
