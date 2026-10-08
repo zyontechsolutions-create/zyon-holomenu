@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useSearchParams } from "next/navigation";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
@@ -71,13 +71,19 @@ function OrdersPage() {
   const overrideId = searchParams.get("restaurant");
   const settingsHref = overrideId ? `/settings?restaurant=${overrideId}` : "/settings";
 
+  // Guards against out-of-order responses: if two loads overlap, only the
+  // newest one is allowed to update the screen (older ones are dropped).
+  const loadSeq = useRef(0);
   async function loadOrders(rid: string) {
-    const { data } = await supabase
+    const seq = ++loadSeq.current;
+    const { data, error } = await supabase
       .from("orders")
       .select("id, status, total, created_at, paid, qr_code_id, bill_number, bill_details, qr_codes(label), order_items(quantity, price_at_order, note, dishes(name))")
       .eq("restaurant_id", rid)
       .order("created_at", { ascending: false });
-    setOrders((data as any) ?? []);
+    if (seq !== loadSeq.current) return; // a newer load is already in flight
+    if (error || !data) return;          // keep what's on screen instead of blanking it
+    setOrders(data as any);
   }
 
   // Staff has now seen the Orders page — clear the sidebar badge.
@@ -88,16 +94,35 @@ function OrdersPage() {
 
   useEffect(() => {
     if (!restaurant) return;
-    loadOrders(restaurant.id);
+    const rid = restaurant.id;
+    loadOrders(rid);
+
+    // Batch bursts of events (order row + its items arrive separately) into one reload.
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => loadOrders(rid), 250);
+    };
+
     const channel = supabase
-      .channel("orders-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders", filter: `restaurant_id=eq.${restaurant.id}` },
-        () => loadOrders(restaurant.id)
-      )
+      .channel(`orders-changes-${rid}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `restaurant_id=eq.${rid}` }, refresh)
+      // Items are saved AFTER the order row, so listen for them too —
+      // otherwise a new order stays at "0 items" until the next order arrives.
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, refresh)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    // Safety net in case a realtime event is dropped (sleeping tab, flaky Wi-Fi).
+    const poll = setInterval(() => loadOrders(rid), 10000);
+    const onVisible = () => { if (document.visibilityState === "visible") loadOrders(rid); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      if (t) clearTimeout(t);
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.id]);
 
@@ -229,7 +254,12 @@ function OrdersPage() {
                   <button onClick={() => toggle(order.id)} className="order-info flex-1 text-left min-w-0">
                     <p className="text-sm font-medium">
                       {order.qr_codes?.label ?? "Table"} <span className="text-goldDeep">· ₹{order.total}</span>
-                      <span className="text-inkSoft font-normal"> · {order.order_items?.length ?? 0} item{(order.order_items?.length ?? 0) !== 1 ? "s" : ""}</span>
+                      {(() => {
+                        const qty = (order.order_items ?? []).reduce((n, it) => n + (it.quantity || 0), 0);
+                        return qty === 0
+                          ? <span className="font-normal" style={{ color: "#b23b3b" }}> · items missing</span>
+                          : <span className="text-inkSoft font-normal"> · {qty} item{qty !== 1 ? "s" : ""}</span>;
+                      })()}
                     </p>
                     <p className="text-xs text-inkSoft mt-0.5">
                       {new Date(order.created_at).toLocaleString()}
@@ -280,7 +310,7 @@ function OrdersPage() {
                       </div>
                     ))}
                     {(!order.order_items || order.order_items.length === 0) && (
-                      <p className="text-sm text-inkSoft">No item details for this order.</p>
+                      <p className="text-sm text-inkSoft">No item details were saved for this order (total ₹{order.total}). Confirm with the customer.</p>
                     )}
                     {order.status !== "cancelled" && (
                       <div className="pt-2 flex items-center gap-3">
