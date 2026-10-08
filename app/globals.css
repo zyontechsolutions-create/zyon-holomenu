@@ -315,3 +315,33 @@ body {
 .kitchen-btn{flex:none;padding:12px 14px;border-radius:7px;border:1px solid rgba(30,27,22,0.2);font-size:14px;font-weight:500;background:transparent;}
 .kitchen-btn.primary{flex:1;background:#1E1B16;color:#F5F0E4;border-color:#1E1B16;font-weight:600;}
 .kitchen-btn.primary:active{transform:scale(0.98);}
+.kitchen-tabs,.kitchen-toast{display:none;}
+@media (max-width:640px){
+  /* Phone: one status at a time, switched from a thumb-reach bottom bar */
+  .kitchen-board{display:block;}
+  .kitchen-col:not(.k-active){display:none;}
+  .kitchen-col-title{display:none;}
+  .kitchen-col{padding:10px;}
+  .panel-main:has(.kitchen-tabs){padding-bottom:96px;}
+  .kitchen-tabs{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));
+    background:#FBF8F1;border-top:1px solid rgba(30,27,22,0.12);box-shadow:0 -8px 20px -14px rgba(30,27,22,0.35);
+  }
+  .kitchen-tab{
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    padding:12px 6px;border-radius:8px;border:1px solid rgba(30,27,22,0.14);
+    background:transparent;font-size:13px;font-weight:600;color:#4a4437;
+  }
+  .kitchen-tab span{background:rgba(30,27,22,0.1);border-radius:999px;font-size:11px;padding:2px 8px;min-width:22px;text-align:center;}
+  .kitchen-tab.on{background:#1E1B16;color:#F5F0E4;border-color:#1E1B16;}
+  .kitchen-tab.on span{background:#F5F0E4;color:#1E1B16;}
+  .kitchen-tab.kt-new:not(.on) span{background:#B8873F;color:#fff;} /* new orders waiting stand out */
+  .kitchen-toast{
+    display:block;position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:41;
+    background:#1E1B16;color:#F5F0E4;font-size:13px;padding:10px 16px;border-radius:999px;white-space:nowrap;
+    box-shadow:0 10px 24px -10px rgba(0,0,0,0.5);
+  }
+}
