@@ -62,6 +62,9 @@ export default function LoginPage() {
         <p className="text-xs text-inkSoft mt-5 text-center">
           New restaurant? <a href="/signup" className="text-goldDeep">Create your menu</a>
         </p>
+        <p className="text-xs text-inkSoft mt-2 text-center">
+          Kitchen or cashier staff? <a href="/staff-login" className="text-goldDeep">Staff sign in</a>
+        </p>
       </div>          
     </div>
   );
