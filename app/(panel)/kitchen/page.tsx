@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Maximize, ChefHat } from "lucide-react";
+import { Bell, Maximize, ChefHat, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
 import { unlockAudioPlayback } from "@/lib/notificationSound";
+import { getAutoPrint, saveAutoPrint, AutoPrintSettings } from "@/lib/autoPrint";
 
 type KItem = { quantity: number; note: string | null; dishes: { name: string } | null };
 type KOrder = {
@@ -35,6 +36,22 @@ export default function KitchenPage() {
   const [soundOn, setSoundOn] = useState(false);
   const [awake, setAwake] = useState(false);
   const wakeLock = useRef<any>(null);
+  const [ap, setAp] = useState<AutoPrintSettings>({ enabled: false, enabledAt: 0, width: 80 });
+  useEffect(() => {
+    if (restaurant) setAp(getAutoPrint(restaurant.id));
+  }, [restaurant?.id]);
+  function toggleAutoPrint() {
+    if (!restaurant) return;
+    const next: AutoPrintSettings = { ...ap, enabled: !ap.enabled, enabledAt: !ap.enabled ? Date.now() : ap.enabledAt };
+    setAp(next);
+    saveAutoPrint(restaurant.id, next);
+  }
+  function toggleWidth() {
+    if (!restaurant) return;
+    const next: AutoPrintSettings = { ...ap, width: ap.width === 80 ? 58 : 80 };
+    setAp(next);
+    saveAutoPrint(restaurant.id, next);
+  }
 
   const load = useCallback(async (rid: string) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -148,6 +165,12 @@ export default function KitchenPage() {
           <button onClick={enableSound} className="kitchen-tool">
             <Bell size={14} /> {soundOn ? "Sound on ✓" : "Enable sound"}
           </button>
+          <button onClick={toggleAutoPrint} className="kitchen-tool" aria-pressed={ap.enabled}>
+            <Printer size={14} /> {ap.enabled ? "Auto-print on ✓" : "Auto-print off"}
+          </button>
+          {ap.enabled && (
+            <button onClick={toggleWidth} className="kitchen-tool" title="Paper width">{ap.width} mm</button>
+          )}
           <button onClick={goFullscreen} className="kitchen-tool">
             <Maximize size={14} /> Full screen
           </button>
