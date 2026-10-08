@@ -5,10 +5,15 @@ import { createClient } from "@/lib/supabaseClient";
 import { playOrderChime, playWaiterChime } from "@/lib/notificationSound";
 
 export type ActiveRestaurant = { id: string; name: string; slug: string; status: string } | null;
+export type Role = "admin" | "owner" | "kitchen" | "cashier" | null;
+type StaffRow = { restaurant_id: string; role: "kitchen" | "cashier"; active: boolean; name: string };
 
 type RestaurantContextValue = {
   restaurant: ActiveRestaurant;
   isAdmin: boolean;
+  role: Role;
+  staffName: string | null;
+  accessDisabled: boolean;
   loading: boolean;
   newOrderCount: number;
   clearNewOrders: () => void;
@@ -19,6 +24,9 @@ type RestaurantContextValue = {
 const RestaurantContext = createContext<RestaurantContextValue>({
   restaurant: null,
   isAdmin: false,
+  role: null,
+  staffName: null,
+  accessDisabled: false,
   loading: true,
   newOrderCount: 0,
   clearNewOrders: () => {},
@@ -33,6 +41,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [staff, setStaff] = useState<StaffRow | null>(null);
   const [restaurant, setRestaurant] = useState<ActiveRestaurant>(null);
   const [loading, setLoading] = useState(true);
   const [newOrderCount, setNewOrderCount] = useState(0);
@@ -43,14 +52,15 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     async function loadUser() {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) { setLoading(false); return; }
-      setUserId(userData.user.id);
 
-      const { data: adminRow } = await supabase
-        .from("zyon_admins")
-        .select("user_id")
-        .eq("user_id", userData.user.id)
-        .maybeSingle();
+      // Is this person a Zyon admin, or a staff member (kitchen / cashier)?
+      const [{ data: adminRow }, { data: staffRow }] = await Promise.all([
+        supabase.from("zyon_admins").select("user_id").eq("user_id", userData.user.id).maybeSingle(),
+        supabase.from("staff").select("restaurant_id, role, active, name").eq("user_id", userData.user.id).maybeSingle(),
+      ]);
       setIsAdmin(!!adminRow);
+      setStaff((staffRow as StaffRow | null) ?? null);
+      setUserId(userData.user.id);
     }
     loadUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,6 +72,18 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     if (!userId) return;
     async function loadRestaurant() {
       setLoading(true);
+      if (staff) {
+        // Staff are tied to one restaurant and never see or create anything else.
+        if (!staff.active) { setRestaurant(null); setLoading(false); return; }
+        const { data: r } = await supabase
+          .from("restaurants")
+          .select("id, name, slug, status")
+          .eq("id", staff.restaurant_id)
+          .single();
+        setRestaurant(r ?? null);
+        setLoading(false);
+        return;
+      }
       if (overrideId && isAdmin) {
         const { data: r } = await supabase
           .from("restaurants")
@@ -100,7 +122,7 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     }
     loadRestaurant();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, isAdmin, overrideId]);
+  }, [userId, isAdmin, overrideId, staff]);
 
   // New-order alert — badge + chime, live across the whole panel (not just
   // the Orders page), so staff notice an order even while on Menu/Dashboard.
@@ -150,9 +172,11 @@ export function RestaurantProvider({ children }: { children: ReactNode }) {
     setWaiterCallCount(0);
   }
 
+  const role: Role = staff ? staff.role : isAdmin ? "admin" : restaurant ? "owner" : null;
+
   return (
     <RestaurantContext.Provider
-      value={{ restaurant, isAdmin, loading, newOrderCount, clearNewOrders, waiterCallCount, clearWaiterCalls }}
+      value={{ restaurant, isAdmin, role, staffName: staff?.name ?? null, accessDisabled: !!staff && !staff.active, loading, newOrderCount, clearNewOrders, waiterCallCount, clearWaiterCalls }}
     >
       {children}
     </RestaurantContext.Provider>
