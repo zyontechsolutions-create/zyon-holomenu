@@ -47,7 +47,8 @@ const STATUS_CLASS: Record<string, string> = {
 
 function OrdersPage() {
   const supabase = createClient();
-  const { restaurant, clearNewOrders } = useActiveRestaurant();
+  const { restaurant, clearNewOrders, role } = useActiveRestaurant();
+  const isStaff = role === "kitchen" || role === "cashier";
   const [orders, setOrders] = useState<Order[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [billOrderId, setBillOrderId] = useState<string | null>(null);
@@ -250,9 +251,10 @@ function OrdersPage() {
                   <select
                     value={order.status}
                     onChange={(e) => updateStatus(order.id, e.target.value)}
+                    disabled={isStaff && order.status === "cancelled"}
                     className={`status-pill ${STATUS_CLASS[order.status] ?? "status-preparing"} capitalize border-none cursor-pointer`}
                   >
-                    {STATUSES.map((s) => (
+                    {STATUSES.filter((s) => !isStaff || s !== "cancelled" || order.status === "cancelled").map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -313,6 +315,7 @@ function OrdersPage() {
           <BillModal
             orderId={billOrderId}
             settingsHref={settingsHref}
+            canRefresh={!isStaff}
             onClose={() => { setBillOrderId(null); if (restaurant) loadOrders(restaurant.id); }}
           />
         )}
