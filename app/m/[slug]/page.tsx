@@ -518,43 +518,63 @@ export default function CustomerMenuPage() {
   }
 
   async function placeOrder() {
-    if (!restaurant || cartItems.length === 0) return;
+    if (!restaurant || cartItems.length === 0 || placingOrder) return;
     if (tableId && !isHost) return;
     setPlacingOrder(true);
-    const { data: order, error } = await supabase
-      .from("orders").insert({ restaurant_id: restaurant.id, qr_code_id: tableId, total: cartTotal, status: "new" })
-      .select("id").single();
-    if (error || !order) { setPlacingOrder(false); return; }
 
-    // In shared-table mode, keep each device's items as separate rows
-    // (rather than one aggregated row per dish) so we can work out who
-    // owes what afterward. A normal private order stays exactly as before.
-    const orderItemRows = tableId
-      ? sharedCartRaw.map((row) => ({
-          order_id: order.id,
-          dish_id: row.dish_id,
-          quantity: row.quantity,
-          price_at_order: dishes.find((d) => d.id === row.dish_id)?.price ?? 0,
-          note: row.device_token === deviceTokenRef.current ? (cartNotes[row.dish_id]?.trim() || null) : null,
-          device_token: row.device_token,
-        }))
-      : cartItems.map((i) => ({
-          order_id: order.id,
-          dish_id: i.dish.id,
-          quantity: i.qty,
-          price_at_order: i.dish.price,
-          note: cartNotes[i.dish.id]?.trim() || null,
-          device_token: null as string | null,
-        }));
-    await supabase.from("order_items").insert(orderItemRows);
+    // Build the order from ONE source of truth. In shared-table mode the
+    // on-screen cart is updated optimistically but the database copy can lag
+    // a moment behind, so read the real rows right now — that way the total,
+    // the saved items and the confirmation always agree.
+    type Line = { dish_id: string; name: string; quantity: number; price: number; note: string | null; device_token: string | null };
+    let lines: Line[] = [];
+    if (tableId) {
+      const { data: fresh, error: freshErr } = await supabase
+        .from("table_cart_items").select("dish_id, quantity, device_token").eq("qr_code_id", tableId);
+      if (freshErr || !fresh) { setPlacingOrder(false); return; }
+      lines = fresh
+        .map((row: any) => {
+          const dish = dishes.find((d) => d.id === row.dish_id);
+          if (!dish || row.quantity <= 0) return null;
+          return {
+            dish_id: row.dish_id, name: dish.name, quantity: row.quantity, price: Number(dish.price),
+            note: row.device_token === deviceTokenRef.current ? (cartNotes[row.dish_id]?.trim() || null) : null,
+            device_token: row.device_token as string | null,
+          };
+        })
+        .filter(Boolean) as Line[];
+    } else {
+      lines = cartItems.map((i) => ({
+        dish_id: i.dish.id, name: i.dish.name, quantity: i.qty, price: Number(i.dish.price),
+        note: cartNotes[i.dish.id]?.trim() || null, device_token: null,
+      }));
+    }
+    if (lines.length === 0) { setPlacingOrder(false); return; }
+
+    // One atomic database call: the order and ALL its items are saved together,
+    // or nothing is saved at all. An empty order can never be created.
+    const { data: placed, error } = await supabase.rpc("place_order", {
+      p_restaurant_id: restaurant.id,
+      p_qr_code_id: tableId,
+      p_lines: lines.map((l) => ({
+        dish_id: l.dish_id, quantity: l.quantity, note: l.note, device_token: l.device_token,
+      })),
+    });
+    const order = placed as { id: string; total: number } | null;
+    if (error || !order?.id) {
+      setPlacingOrder(false);
+      alert("Couldn't place your order. Please try again.");
+      return;
+    }
+    const savedTotal = Number(order.total);
 
     addStoredOrderId(slug, order.id);
     knownStatusRef.current[order.id] = "new";
     knownPaidRef.current[order.id] = false;
     setLastOrder({
       id: order.id,
-      items: cartItems.map((i) => ({ name: i.dish.name, qty: i.qty, price: i.dish.price, note: cartNotes[i.dish.id]?.trim() || undefined })),
-      total: cartTotal,
+      items: lines.map((l) => ({ name: l.name, qty: l.quantity, price: l.price, note: l.note || undefined })),
+      total: savedTotal,
       status: "new",
       rating: null,
       paid: false,
