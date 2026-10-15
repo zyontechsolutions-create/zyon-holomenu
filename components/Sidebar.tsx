@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail, Settings, ChefHat } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, QrCode, ClipboardList, LogOut, Building2, Bell, Volume2, Mail, Settings, ChefHat, Printer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useActiveRestaurant } from "@/lib/useActiveRestaurant";
@@ -14,6 +14,7 @@ const links = [
   { href: "/kitchen", label: "Kitchen", icon: ChefHat },
   { href: "/waiter-calls", label: "Waiter Calls", icon: Bell },
   { href: "/qr-codes", label: "QR Codes", icon: QrCode },
+  { href: "/print-kit", label: "Print Kit", icon: Printer },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
