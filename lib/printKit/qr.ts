@@ -1,4 +1,5 @@
 import { createElement } from "react";
+// @ts-ignore -- this project has no @types/react-dom; the function exists at runtime
 import { renderToStaticMarkup } from "react-dom/server";
 import { QRCodeSVG } from "qrcode.react";
 
